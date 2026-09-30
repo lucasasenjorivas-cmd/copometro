@@ -181,6 +181,29 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
 #off { position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--red); color: #fff; font-weight: 800; font-size: 13px; padding: 6px 14px; border-radius: 999px; z-index: 19; }
 #fx { position: fixed; inset: 0; pointer-events: none; z-index: 15; width: 100%; height: 100%; }
 .boot { text-align: center; color: var(--muted); padding: 30px; }
+.avi img { width: 1.15em; height: 1.15em; border-radius: 50%; object-fit: cover; vertical-align: -.2em; border: 2px solid rgba(255,255,255,.5); }
+.ph-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ph-prev { font-size: 56px; line-height: 1; width: 72px; height: 72px; display: grid; place-items: center; background: var(--bg); border-radius: 50%; overflow: hidden; }
+.ph-prev .avi img { width: 72px; height: 72px; border: 0; vertical-align: top; }
+.filebtn { cursor: pointer; }
+.chk { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; font-weight: 500; line-height: 1.35; }
+.chk input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--lime); flex: none; }
+#modal { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 16px; }
+#modal[hidden] { display: none; }
+.mback { position: absolute; inset: 0; background: rgba(8,0,22,.8); }
+.mcard { position: relative; max-width: 420px; width: 100%; max-height: 92vh; overflow: auto; background: linear-gradient(160deg, var(--card2), var(--card)); border: 2px solid rgba(255,255,255,.14); border-radius: 24px; padding: 20px; display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; }
+.mcard p { margin: 0; text-align: left; font-size: 14px; }
+.qrimg { width: min(100%, 320px); height: auto; image-rendering: pixelated; border-radius: 16px; background: #fff; padding: 10px; }
+.alert { border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 10px; font-weight: 500; border: 2px solid; }
+.alert.red { background: rgba(255,75,75,.16); border-color: var(--red); }
+.alert.amber { background: rgba(255,210,31,.14); border-color: var(--gold); }
+.alert b { font-weight: 800; }
+.pl { text-decoration: none; }
+.center { text-align: center; }
+.wr-safe { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; font-weight: 700; font-size: 13px; }
+.wr-awards { display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left; }
+.wr-awards div { background: rgba(0,0,0,.22); border-radius: 12px; padding: 7px 10px; font-size: 13px; font-weight: 700; display: flex; gap: 8px; align-items: center; }
+.wr-awards .n { margin-left: auto; font-family: var(--display); font-weight: 400; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 </head>
@@ -190,7 +213,9 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="off" hidden>Sin conexión… reintentando</div>
 <canvas id="fx" aria-hidden="true"></canvas>
+<div id="modal" hidden></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script>
 (function () {
   var ALC = [
@@ -230,7 +255,57 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
   function P(id) { return players().filter(function (p) { return p.id === id; })[0]; }
   function me() { return P(S.prof.pid); }
   function nm(id) { var p = P(id); return p ? p.name : '¿?'; }
-  function em(id) { var p = P(id); return p ? p.emoji : '👤'; }
+  function avi(p) {
+    if (!p) return '👤';
+    if (p.ph > 0) return '<span class="avi"><img src="/photo/' + esc(S.code) + '/' + esc(p.id) + '?v=' + p.ph + '" alt=""></span>';
+    return avi(p);
+  }
+  function em(id) { return avi(P(id)); }
+
+  var PARTNERS = {
+    ride: [{ n: '🚕 Uber', u: 'https://m.uber.com/' }, { n: '🚕 Cabify', u: 'https://cabify.com/es' }, { n: '🚕 Bolt', u: 'https://bolt.eu/es-es/' }],
+    food: [{ n: '🍕 Glovo', u: 'https://glovoapp.com/es/es/' }, { n: '🍔 Uber Eats', u: 'https://www.ubereats.com/es' }]
+  };
+  function partnerLinks(list) { return list.map(function (p) { return '<a class="ghost pl" href="' + p.u + '" target="_blank" rel="noopener sponsored">' + p.n + '</a>'; }).join(''); }
+
+  var $modal = document.getElementById('modal');
+  function showModal(html) { $modal.innerHTML = '<div class="mback" data-act="mclose"></div><div class="mcard" role="dialog" aria-modal="true">' + html + '<button class="btn" data-act="mclose">Cerrar</button></div>'; $modal.hidden = false; }
+  function closeModal() { $modal.hidden = true; $modal.innerHTML = ''; }
+  $modal.addEventListener('click', function (e) { var b = e.target.closest('[data-act]'); if (b && b.dataset.act === 'mclose') closeModal(); });
+  function privacyModal() {
+    showModal('<h2>Privacidad</h2>' +
+      '<p>Copómetro guarda solo lo que tú escribes: tu nombre, tu cara (emoji o foto), tu Instagram si lo pones y los tragos que apuntas.</p>' +
+      '<p>Se usa únicamente para enseñar la fiesta a quienes están dentro, y se borra solo a los 30 días sin actividad. No vendemos tus datos.</p>' +
+      '<p>Solo para mayores de 18 años. Puedes quitar tu foto o tu Instagram en cualquier momento desde «✏️ Yo».</p>' +
+      '<p>Los enlaces de taxi y comida llevan a servicios externos con sus propias condiciones.</p>');
+  }
+  function qrModal() {
+    var img;
+    try { var q = qrcode(0, 'M'); q.addData(link()); q.make(); img = '<img class="qrimg" alt="Código QR para entrar a la fiesta" src="' + q.createDataURL(8, 4) + '">'; }
+    catch (e) { img = '<div class="note">No se pudo generar el QR. Comparte este enlace.</div>'; }
+    showModal('<h2>Escanea para entrar</h2>' + img + '<div class="codepill">' + esc(S.code) + '</div><div class="note">' + esc(link()) + '</div>');
+  }
+
+  function handlePhoto(file) {
+    if (!file) return;
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function () {
+      var size = 160, c = document.createElement('canvas'); c.width = c.height = size;
+      var x = c.getContext('2d'), s = Math.min(img.width, img.height);
+      x.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+      var q = .7, d = c.toDataURL('image/jpeg', q);
+      while (d.length > 22000 && q > .3) { q -= .1; d = c.toDataURL('image/jpeg', q); }
+      URL.revokeObjectURL(url);
+      S.prof.photo = d; S.prof.removePhoto = false; save({ prof: S.prof }); refreshPhoto();
+    };
+    img.onerror = function () { toast('No se pudo leer esa foto'); };
+    img.src = url;
+  }
+  function refreshPhoto() {
+    var p = document.getElementById('ph-prev'), r = document.getElementById('rm-ph');
+    if (p) p.innerHTML = S.prof.photo ? '<span class="avi"><img src="' + S.prof.photo + '" alt=""></span>' : esc(S.prof.emoji);
+    if (r) r.hidden = !S.prof.photo;
+  }
   function link() { return location.origin + '/' + S.code; }
   function toast(t) { var el = document.getElementById('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(function () { el.classList.remove('on'); }, 3400); }
 
@@ -271,9 +346,18 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
   function emojiRow() {
     return '<div><div class="note" style="margin-bottom:8px">Elige tu cara</div><div class="emojis">' + AVATARS.map(function (e) { return '<button class="emo" data-act="emoji" data-v="' + e + '" aria-pressed="' + (S.prof.emoji === e) + '">' + e + '</button>'; }).join('') + '</div></div>';
   }
+  function photoRow() {
+    return '<div><div class="note" style="margin-bottom:8px">Tu foto (opcional)</div><div class="ph-row"><div class="ph-prev" id="ph-prev">' +
+      (S.prof.photo ? '<span class="avi"><img src="' + S.prof.photo + '" alt=""></span>' : esc(S.prof.emoji)) + '</div>' +
+      '<label class="ghost filebtn">📷 Hacer foto<input id="in-cam" type="file" accept="image/*" capture="user" hidden></label>' +
+      '<label class="ghost filebtn">🖼️ Galería<input id="in-gal" type="file" accept="image/*" hidden></label>' +
+      '<button class="ghost" data-act="rmphoto" id="rm-ph"' + (S.prof.photo ? '' : ' hidden') + '>Quitar</button></div></div>';
+  }
   function profFields(nameVal) {
-    return '<label class="f" for="in-name">Tu nombre<input id="in-name" type="text" maxlength="18" placeholder="Ej: Lucas el Imparable" value="' + esc(nameVal) + '" autocomplete="off"></label>' + emojiRow() +
-      '<label class="f" for="in-ig">Tu Instagram (opcional)<input id="in-ig" type="text" maxlength="40" placeholder="@tuusuario" value="' + esc(S.prof.ig ? '@' + S.prof.ig : '') + '" autocapitalize="none" autocomplete="off"></label>';
+    return '<label class="f" for="in-name">Tu nombre<input id="in-name" type="text" maxlength="18" placeholder="Ej: Lucas el Imparable" value="' + esc(nameVal) + '" autocomplete="off"></label>' + photoRow() + emojiRow() +
+      '<label class="f" for="in-ig">Tu Instagram (opcional)<input id="in-ig" type="text" maxlength="40" placeholder="@tuusuario" value="' + esc(S.prof.ig ? '@' + S.prof.ig : '') + '" autocapitalize="none" autocomplete="off"></label>' +
+      '<label class="chk"><input id="in-age" type="checkbox"' + (S.prof.adult ? ' checked' : '') + '><span>Tengo 18 años o más y me comprometo a beber con responsabilidad.</span></label>' +
+      '<div class="note"><a href="#" data-act="privacy">Privacidad y datos</a></div>';
   }
   function homeView() {
     S.view = 'home';
@@ -300,11 +384,22 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
   function readProf() {
     var g = function (id) { var el = document.getElementById(id); return el ? el.value : ''; };
     S.prof.name = g('in-name').trim(); S.prof.ig = cleanIg(g('in-ig'));
+    var age = document.getElementById('in-age'); if (age) S.prof.adult = age.checked;
     if (!S.prof.pid) S.prof.pid = 'p' + rid(11);
     save({ prof: S.prof });
     return S.prof.name;
   }
-  function profBody(extra) { var b = { pid: S.prof.pid, name: S.prof.name, emoji: S.prof.emoji, ig: S.prof.ig }; for (var k in extra) b[k] = extra[k]; return b; }
+  function profError() {
+    if (!S.prof.name) return 'Ponte un nombre para salir en el ranking.';
+    if (!S.prof.adult) return 'Tienes que confirmar que tienes 18 años o más.';
+    return '';
+  }
+  function profBody(extra) {
+    var b = { pid: S.prof.pid, name: S.prof.name, emoji: S.prof.emoji, ig: S.prof.ig, adult: true };
+    if (S.prof.photo) b.photo = S.prof.photo; else if (S.prof.removePhoto) b.removePhoto = true;
+    for (var k in extra) b[k] = extra[k];
+    return b;
+  }
 
   /* ---------- session ---------- */
   function startParty(view) {
@@ -314,7 +409,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     seenUpdate(view, true); render(); poll();
   }
   async function createParty() {
-    if (!readProf()) return setErr('Ponte un nombre para salir en el ranking.');
+    readProf(); var pe = profError(); if (pe) return setErr(pe);
     try { var v = await api('create', profBody({ party: document.getElementById('in-party').value })); startParty(v); }
     catch (e) { setErr(e.message || 'No se pudo crear la fiesta.'); }
   }
@@ -366,6 +461,8 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     var m = me(); if (!m) return;
     var cur = m.drinks[k] || 0, nv = Math.max(0, cur + delta); if (nv === cur) return;
     m.drinks[k] = nv;
+    var tn = total(m.drinks);
+    if (delta > 0 && ALC.some(function (x) { return x.k === k; }) && (tn === 5 || tn === 8)) toast(tn === 8 ? '🚨 8 tragos: agua y taxi, ¿vale?' : '💧 5 tragos. Toca un vaso de agua.');
     if (delta > 0) burst(KINDS.filter(function (x) { return x.k === k; })[0].e);
     S.inflight++; render();
     var last = null;
@@ -404,10 +501,19 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
       return '<div class="drink ' + (cls || '') + '"><div class="e">' + k.e + '</div><div class="n">' + k.n + '</div><div class="c">' + (d[k.k] || 0) + '</div>' +
         '<div class="acts"><button class="plus" data-act="add" data-k="' + k.k + '"' + fin + ' aria-label="Sumar ' + k.n + '">+1</button><button class="minus" data-act="sub" data-k="' + k.k + '"' + fin + ' aria-label="Restar ' + k.n + '">−</button></div></div>';
     };
-    return gauge() +
+    return gauge() + safetyBanner() +
       (S.d.finished ? '<div class="card"><h2>🏁 Fiesta terminada</h2><button class="btn" data-act="wopen">🎬 Ver el Wrapped</button></div>' : '') +
       '<div class="card mine"><h2>Tus tragos</h2><div class="big">' + t + '</div><div class="note">' + esc(levelOf(t)) + '</div><div class="drinks">' + ALC.map(function (k) { return card(k); }).join('') + '</div></div>' +
-      '<div class="card mine"><h2>Modo supervivencia</h2><div class="note">No cuentan como tragos, pero salen en el Wrapped. Se apunta, no se juzga.</div><div class="drinks">' + EXTRA.map(function (k) { return card(k, 'extra'); }).join('') + '</div></div>';
+      '<div class="card mine"><h2>Modo supervivencia</h2><div class="note">No cuentan como tragos, pero salen en el Wrapped. Se apunta, no se juzga.</div><div class="drinks">' + EXTRA.map(function (k) { return card(k, 'extra'); }).join('') + '</div></div>' +
+      '<div class="card"><h2>Vuelve seguro y cena algo</h2><div class="note">Enlaces a servicios externos. Si has bebido, no conduzcas.</div><div class="seg">' + partnerLinks(PARTNERS.ride) + '</div><div class="seg">' + partnerLinks(PARTNERS.food) + '</div><a class="ghost pl" href="tel:112">🆘 Emergencias 112</a></div>';
+  }
+  function safetyBanner() {
+    var m = me(); if (!m) return '';
+    var d = m.drinks || {}, alc = total(d), agua = d.agua || 0, plus = '<button class="ghost" data-act="add" data-k="agua">+1 💧 agua</button>';
+    if (alc >= 8) return '<div class="alert red"><div><b>🚨 Llevas ' + alc + ' tragos.</b> Para un rato, bebe agua y pide un taxi para volver. Conducir ni pensarlo.</div><div class="seg">' + partnerLinks(PARTNERS.ride) + plus + '</div></div>';
+    if (alc >= 4 && agua < Math.floor(alc / 3)) return '<div class="alert amber"><div><b>💧 Llevas ' + alc + ' tragos y poca agua.</b> Un vaso ahora y mañana lo agradeces.</div><div class="seg">' + plus + '</div></div>';
+    if ((d.vomito || 0) >= 2) return '<div class="alert amber"><div><b>🤮 Si te encuentras mal, avisa a alguien y no te quedes solo.</b> En una urgencia, llama al 112.</div><div class="seg">' + plus + '<a class="ghost pl" href="tel:112">🆘 112</a></div></div>';
+    return '';
   }
 
   /* ---------- wrapped ---------- */
@@ -425,14 +531,14 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     var sumAlc = 0, sumVom = 0, sumAgua = 0, sumRetos = retos().length;
     ps.forEach(function (p) { sumAlc += total(p.drinks); sumVom += p.drinks.vomito || 0; sumAgua += p.drinks.agua || 0; });
     var d = function (p, k) { return p.drinks[k] || 0; };
-    var who = function (r) { return { emoji: r.p.emoji, name: r.p.name }; };
+    var who = function (r) { return { emoji: r.p.emoji, name: r.p.name, p: r.p }; };
     var length = S.d.finishedAt && S.d.created ? dur(S.d.finishedAt - S.d.created) : '';
     out.push({ bg: 'pink', emoji: '🎉', kicker: 'WRAPPED', big: sumAlc, unit: 'tragos en total', line: '«' + S.d.name + '»: ' + ps.length + (ps.length === 1 ? ' valiente' : ' valientes') + (length ? ' durante ' + length : '') + '.', confetti: true });
     var rey = maxBy(ps, function (p) { return total(p.drinks); });
     if (rey) out.push({ bg: 'gold', emoji: '👑', kicker: 'LA LEYENDA DE LA NOCHE', who: who(rey), big: rey.v, unit: 'tragos', line: rey.v >= 10 ? 'Su hígado ha pedido un abogado.' : 'Sin freno y sin marcha atrás.', confetti: true });
     if (ps.length > 1) {
       var mn = null; ps.forEach(function (p) { if (!mn || total(p.drinks) < total(mn.drinks)) mn = p; });
-      if (mn && rey && total(mn.drinks) < rey.v) out.push({ bg: 'cyan', emoji: '🥤', kicker: 'EL MÁS SOBRIO', who: { emoji: mn.emoji, name: mn.name }, big: total(mn.drinks), unit: total(mn.drinks) === 1 ? 'trago' : 'tragos', line: total(mn.drinks) === 0 ? 'Cero tragos. Santidad o tacañería.' : 'Alguien tenía que ir a por los abrigos.' });
+      if (mn && rey && total(mn.drinks) < rey.v) out.push({ bg: 'cyan', emoji: '🥤', kicker: 'EL MÁS SOBRIO', who: { emoji: mn.emoji, name: mn.name, p: mn }, big: total(mn.drinks), unit: total(mn.drinks) === 1 ? 'trago' : 'tragos', line: total(mn.drinks) === 0 ? 'Cero tragos. Santidad o tacañería.' : 'Alguien tenía que ir a por los abrigos.' });
     }
     var vom = maxBy(ps, function (p) { return d(p, 'vomito'); });
     if (vom) out.push({ bg: 'lime', emoji: '🤮', kicker: 'CAMPEÓN DEL VÓMITO', who: who({ p: vom.p }), big: vom.v, unit: vom.v === 1 ? 'vez' : 'veces', line: 'Lo devolvió todo. Hasta la dignidad.' });
@@ -457,7 +563,8 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     var dg = maxBy(ps, function (p) { return st[p.id].dodged; });
     if (dg) out.push({ bg: 'lime', emoji: '🍀', kicker: 'EL SUERTUDO', who: who(dg), big: dg.v, unit: dg.v === 1 ? 'reto esquivado' : 'retos esquivados', line: 'Adivina la mente de los demás. Sospechoso.' });
     var rank = ps.slice().sort(function (a, b) { return total(b.drinks) - total(a.drinks); }).slice(0, 3);
-    out.push({ bg: 'gold', emoji: '🏆', kicker: 'PODIO FINAL', podium: rank, totals: { alc: sumAlc, vom: sumVom, agua: sumAgua, retos: sumRetos }, last: true });
+    var awards = out.filter(function (s) { return s.who; }).slice(0, 6).map(function (s) { return { emoji: s.emoji, kicker: s.kicker, who: s.who, big: s.big, unit: s.unit }; });
+    out.push({ bg: 'gold', emoji: '🏆', kicker: 'RESUMEN DE LA NOCHE', podium: rank, awards: awards, totals: { alc: sumAlc, vom: sumVom, agua: sumAgua, retos: sumRetos }, last: true });
     return out;
   }
   function wrappedText(sl) {
@@ -465,26 +572,102 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     sl.forEach(function (s) { if (s.who) t += s.emoji + ' ' + s.kicker.toLowerCase() + ': ' + s.who.name + ' (' + s.big + ' ' + s.unit + ')\n'; });
     return t + '\n' + link();
   }
+  /* ---------- historias (imagen 1080x1920) ---------- */
+  var BG = { pink: ['#ff2e97', '#6a1bb0'], cyan: ['#19e3ff', '#1b3fa8'], lime: ['#b7f023', '#0f7a55'], gold: ['#ffc21f', '#c2410c'], red: ['#ff4b4b', '#5b1170'] };
+  var EMF = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+  function loadImg(src) { return new Promise(function (res) { var i = new Image(); i.onload = function () { res(i); }; i.onerror = function () { res(null); }; i.src = src; }); }
+  function wrapText(x, text, cx, y, maxW, lh, maxLines) {
+    var words = String(text).split(' '), line = '', lines = [];
+    words.forEach(function (w) { var t = line ? line + ' ' + w : w; if (x.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; });
+    if (line) lines.push(line);
+    lines = lines.slice(0, maxLines || 5);
+    lines.forEach(function (l, k) { x.fillText(l, cx, y + k * lh); });
+    return y + lines.length * lh;
+  }
+  function fit(x, text, maxW) { var t = String(text); while (t.length > 1 && x.measureText(t).width > maxW) t = t.slice(0, -1); return t; }
+  async function drawAvatar(x, p, cx, cy, r) {
+    var img = p && p.ph > 0 ? await loadImg('/photo/' + S.code + '/' + p.id + '?v=' + p.ph) : null;
+    x.save(); x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.closePath(); x.fillStyle = 'rgba(0,0,0,.28)'; x.fill();
+    if (img) { x.clip(); x.drawImage(img, cx - r, cy - r, r * 2, r * 2); x.restore(); x.lineWidth = 7; x.strokeStyle = '#fff'; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.stroke(); }
+    else { x.restore(); x.font = Math.round(r * 1.2) + 'px ' + EMF; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#fff'; x.fillText(p ? p.emoji : '👤', cx, cy + r * 0.08); x.textBaseline = 'alphabetic'; }
+  }
+  async function makeStory(s) {
+    try { await document.fonts.load('60px Bungee'); await document.fonts.load('40px Rubik'); } catch (e) {}
+    var W = 1080, H = 1920, c = document.createElement('canvas'); c.width = W; c.height = H;
+    var x = c.getContext('2d'), cols = BG[s.bg] || BG.pink, g = x.createLinearGradient(0, 0, W * 0.4, H);
+    g.addColorStop(0, cols[0]); g.addColorStop(1, cols[1]); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    x.textAlign = 'center'; x.textBaseline = 'alphabetic'; x.fillStyle = '#fff';
+    x.font = '56px Bungee, Impact, sans-serif'; x.fillText('COPÓMETRO', W / 2, 130);
+    x.font = '40px Rubik, Arial, sans-serif'; x.globalAlpha = .85; x.fillText('«' + fit(x, S.d.name, 820) + '»', W / 2, 195); x.globalAlpha = 1;
+    if (s.last) {
+      x.font = '64px Bungee, Impact, sans-serif'; x.fillText('RESUMEN DE LA NOCHE', W / 2, 340);
+      var medals = ['🥇', '🥈', '🥉'];
+      for (var i = 0; i < s.podium.length; i++) {
+        var p = s.podium[i], y = 400 + i * 170;
+        x.fillStyle = 'rgba(0,0,0,.25)'; x.beginPath(); if (x.roundRect) x.roundRect(90, y, 900, 140, 30); else x.rect(90, y, 900, 140); x.fill();
+        x.fillStyle = '#fff'; x.textAlign = 'center'; x.font = '64px ' + EMF; x.fillText(medals[i], 150, y + 92);
+        await drawAvatar(x, p, 290, y + 70, 52);
+        x.textAlign = 'left'; x.font = '50px Bungee, Impact, sans-serif'; x.fillText(fit(x, p.name, 420), 370, y + 90);
+        x.textAlign = 'right'; x.font = '70px Bungee, Impact, sans-serif'; x.fillText(String(total(p.drinks)), 955, y + 92);
+      }
+      x.textAlign = 'center';
+      var tt = [[s.totals.alc, 'tragos'], [s.totals.agua, '💧 aguas'], [s.totals.vom, '🤮 vómitos'], [s.totals.retos, '🎲 retos']];
+      tt.forEach(function (t, k) {
+        var bx = 90 + k * 230; x.fillStyle = 'rgba(0,0,0,.25)'; x.beginPath(); if (x.roundRect) x.roundRect(bx, 940, 210, 150, 26); else x.rect(bx, 940, 210, 150); x.fill();
+        x.fillStyle = '#fff'; x.font = '64px Bungee, Impact, sans-serif'; x.fillText(String(t[0]), bx + 105, 1012); x.font = '28px Rubik, Arial, sans-serif'; x.fillText(t[1], bx + 105, 1060);
+      });
+      s.awards.forEach(function (a, k) {
+        var y = 1170 + k * 100; x.textAlign = 'left'; x.font = '54px ' + EMF; x.fillText(a.emoji, 100, y + 50);
+        x.font = '34px Rubik, Arial, sans-serif'; x.fillText(fit(x, a.kicker.toLowerCase(), 520), 190, y + 48);
+        x.textAlign = 'right'; x.font = '40px Bungee, Impact, sans-serif'; x.fillText(fit(x, a.who.name, 330), 980, y + 50);
+      });
+    } else {
+      x.font = '62px Bungee, Impact, sans-serif'; wrapText(x, s.kicker, W / 2, 330, 900, 76, 3);
+      var hasWho = !!s.who, hasBig = s.big !== undefined;
+      x.font = (hasWho || hasBig ? 280 : 420) + 'px ' + EMF; x.fillText(s.emoji, W / 2, hasWho || hasBig ? 680 : 820);
+      if (hasWho) { await drawAvatar(x, s.who.p, W / 2, 860, 95); x.fillStyle = '#fff'; x.textAlign = 'center'; x.font = '84px Bungee, Impact, sans-serif'; x.fillText(fit(x, s.who.name, 900), W / 2, 1060); }
+      if (hasBig) { x.font = '300px Bungee, Impact, sans-serif'; x.fillText(String(s.big), W / 2, 1340); x.font = '60px Bungee, Impact, sans-serif'; x.fillText(String(s.unit).toUpperCase(), W / 2, 1430); }
+      x.font = '56px Rubik, Arial, sans-serif'; wrapText(x, s.line || '', W / 2, hasBig ? 1560 : 1100, 840, 72, 4);
+    }
+    x.textAlign = 'center'; x.fillStyle = '#fff'; x.globalAlpha = .9; x.font = '36px Rubik, Arial, sans-serif';
+    x.fillText(location.host + '  ·  Bebe con cabeza. Solo mayores de 18', W / 2, 1850); x.globalAlpha = 1;
+    return c;
+  }
+  async function shareStory(s) {
+    toast('Preparando la imagen…');
+    var c = await makeStory(s);
+    c.toBlob(async function (blob) {
+      if (!blob) return toast('No se pudo crear la imagen');
+      var file = new File([blob], 'copometro-historia.png', { type: 'image/png' });
+      try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Copómetro', text: 'Mi noche en Copómetro ' + link() }); return; } }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'copometro-historia.png'; document.body.appendChild(a); a.click(); a.remove();
+      toast('Imagen descargada. Súbela a tus historias 📸');
+    }, 'image/png');
+  }
   function wrappedView() {
     var sl = wrappedSlides(), i = Math.min(S.wrap.i, sl.length - 1), s = sl[i], host = !S.d.host || S.d.host === S.prof.pid;
     var dots = sl.map(function (x, k) { return '<i class="' + (k === i ? 'on' : k < i ? 'done' : '') + '"></i>'; }).join('');
     var body = '';
     if (s.last) {
-      body = '<div class="wr-kicker">' + s.kicker + '</div><div class="wr-podium">' + s.podium.map(function (p, k) { return '<div class="wr-pl"><span class="m">' + ['🥇', '🥈', '🥉'][k] + '</span><span class="a">' + esc(p.emoji) + '</span><b>' + esc(p.name) + '</b><span class="v">' + total(p.drinks) + '</span></div>'; }).join('') + '</div>' +
+      body = '<div class="wr-kicker">' + s.kicker + '</div><div class="wr-podium">' + s.podium.map(function (p, k) { return '<div class="wr-pl"><span class="m">' + ['🥇', '🥈', '🥉'][k] + '</span><span class="a">' + avi(p) + '</span><b>' + esc(p.name) + '</b><span class="v">' + total(p.drinks) + '</span></div>'; }).join('') + '</div>' +
+        '<div class="wr-awards">' + s.awards.map(function (a) { return '<div><span>' + a.emoji + '</span><span>' + esc(a.kicker.toLowerCase()) + '</span><span class="n">' + esc(a.who.name) + '</span></div>'; }).join('') + '</div>' +
         '<div class="wr-tot"><div><b>' + s.totals.alc + '</b>tragos</div><div><b>' + s.totals.agua + '</b>💧 aguas</div><div><b>' + s.totals.vom + '</b>🤮 vómitos</div><div><b>' + s.totals.retos + '</b>🎲 retos</div></div>' +
+        '<button class="btn cy" data-act="wstory">📸 Compartir en historias</button>' +
         '<a class="btn wa" href="https://wa.me/?text=' + encodeURIComponent(wrappedText(sl)) + '" target="_blank" rel="noopener">💬 Compartir por WhatsApp</a>' +
+        '<div class="wr-safe">Vuelve seguro: ' + partnerLinks(PARTNERS.ride) + '</div><div class="wr-safe">Bebe con cabeza. Solo mayores de 18.</div>' +
         '<button class="ghost" data-act="wrestart">↺ Ver otra vez</button>' +
         (host ? '<button class="ghost" data-act="reopen">🔓 Reabrir la fiesta</button>' : '');
     } else {
       body = '<div class="wr-kicker">' + esc(s.kicker) + '</div><div class="wr-emoji">' + s.emoji + '</div>' +
-        (s.who ? '<div class="wr-who"><span>' + esc(s.who.emoji) + '</span>' + esc(s.who.name) + '</div>' : '') +
+        (s.who ? '<div class="wr-who"><span>' + avi(s.who.p) + '</span>' + esc(s.who.name) + '</div>' : '') +
         (s.big !== undefined ? '<div class="wr-big">' + s.big + '</div><div class="wr-unit">' + esc(s.unit) + '</div>' : '') +
         '<div class="wr-line">' + esc(s.line) + '</div>';
     }
     if (s.confetti && S.wrap.c !== i) { S.wrap.c = i; setTimeout(function () { confetti(['🥂', '🍾', '🎉']); }, 200); }
     return '<div class="wr bg-' + s.bg + '"><div class="wr-top"><div class="wr-dots">' + dots + '</div><button class="ghost" data-act="wclose">✕ Cerrar</button></div>' +
       '<div class="wr-body" key="' + i + '">' + body + '</div>' +
-      '<div class="wr-nav"><button class="ghost" data-act="wprev"' + (i === 0 ? ' disabled' : '') + '>← Atrás</button>' + (s.last ? '' : '<button class="btn" data-act="wnext">Siguiente →</button>') + '</div></div>';
+      '<div class="wr-nav"><button class="ghost" data-act="wprev"' + (i === 0 ? ' disabled' : '') + '>← Atrás</button>' + (s.last ? '' : '<button class="ghost" data-act="wstory" aria-label="Compartir en historias">📸</button><button class="btn" data-act="wnext">Siguiente →</button>') + '</div></div>';
   }
   function rankView() {
     var arr = players().slice().sort(function (a, b) { return total(b.drinks) - total(a.drinks) || a.joined - b.joined; });
@@ -493,12 +676,12 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     if (top[1]) order.push([top[1], 2]); if (top[0]) order.push([top[0], 1]); if (top[2]) order.push([top[2], 3]);
     var pod = '<div class="podium">' + order.map(function (o) {
       var p = o[0], n = o[1];
-      return '<div class="pod p' + n + '"><div class="av">' + (n === 1 ? '<span class="crown">👑</span>' : '') + esc(p.emoji) + '</div><div class="nm">' + esc(p.name) + '</div><div class="blk">' + total(p.drinks) + '</div></div>';
+      return '<div class="pod p' + n + '"><div class="av">' + (n === 1 ? '<span class="crown">👑</span>' : '') + avi(p) + '</div><div class="nm">' + esc(p.name) + '</div><div class="blk">' + total(p.drinks) + '</div></div>';
     }).join('') + '</div>';
     var rows = arr.map(function (p, i) {
       var t = total(p.drinks), brk = KINDS.filter(function (k) { return p.drinks[k.k]; }).map(function (k) { return k.e + p.drinks[k.k]; }).join(' ');
       var ig = p.ig ? '<a class="ig" href="https://www.instagram.com/' + encodeURIComponent(p.ig) + '/" target="_blank" rel="noopener noreferrer">📸 @' + esc(p.ig) + '</a>' : '';
-      return '<div class="rk' + (p.id === S.prof.pid ? ' me' : '') + '"><div class="pos">' + (i + 1) + '</div><div class="av">' + esc(p.emoji) + '</div>' +
+      return '<div class="rk' + (p.id === S.prof.pid ? ' me' : '') + '"><div class="pos">' + (i + 1) + '</div><div class="av">' + avi(p) + '</div>' +
         '<div class="mid"><div class="nm">' + esc(p.name) + (p.id === S.prof.pid ? '<span class="tg">TÚ</span>' : '') + '</div><div class="lb">' + esc(levelOf(t)) + '</div>' +
         '<div class="bar"><i style="width:' + Math.round(t / max * 100) + '%"></i></div><div class="brk">' + (brk || 'Aún nada') + '</div>' + ig + '</div><div class="tot">' + t + '</div></div>';
     }).join('');
@@ -508,7 +691,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
       : '<div class="note" style="text-align:center">Cuando quien creó la fiesta la termine, saldrá el Wrapped para todos. 🎬</div>';
     return '<div class="card"><h2>🏆 Ranking</h2>' + pod + '<div class="rows">' + rows + '</div><div class="note">Toca el Instagram de cada uno para cotillear cómo va la fiesta.</div></div>' + fin;
   }
-  function retoLine(r) { return '<b>' + esc(nm(r.from)) + '</b> ' + esc(em(r.from)) + ' → <b>' + esc(nm(r.to)) + '</b> ' + esc(em(r.to)) + ' · ' + (r.kind === 'chupito' ? '🥃 chupito' : '🍹 trago'); }
+  function retoLine(r) { return '<b>' + esc(nm(r.from)) + '</b> ' + em(r.from) + ' → <b>' + esc(nm(r.to)) + '</b> ' + em(r.to) + ' · ' + (r.kind === 'chupito' ? '🥃 chupito' : '🍹 trago'); }
   function numGrid(range, act, extra, sel, cls) {
     var cols = range === 10 ? 5 : range, h = '<div class="nums" style="grid-template-columns:repeat(' + cols + ',1fr)">';
     for (var i = 1; i <= range; i++) h += '<button class="num ' + (cls || '') + '" data-act="' + act + '" data-n="' + i + '" ' + (extra || '') + ' aria-pressed="' + (sel === i) + '">' + i + '</button>';
@@ -518,7 +701,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     var myId = S.prof.pid, others = players().filter(function (p) { return p.id !== myId; }), out = '';
     retos().forEach(function (r) {
       if (r.to === myId && r.status === 'pending')
-        out += '<div class="reto hot"><div class="h"><b>' + esc(nm(r.from)) + '</b> ' + esc(em(r.from)) + ' te reta a un <b>' + (r.kind === 'chupito' ? 'chupito 🥃' : 'trago 🍹') + '</b></div><div class="note">Elige un número del 1 al ' + r.range + '. Si coincide con el suyo, bebes.</div>' + numGrid(r.range, 'answer', 'data-id="' + r.id + '"', 0, 'big2') + '</div>';
+        out += '<div class="reto hot"><div class="h"><b>' + esc(nm(r.from)) + '</b> ' + em(r.from) + ' te reta a un <b>' + (r.kind === 'chupito' ? 'chupito 🥃' : 'trago 🍹') + '</b></div><div class="note">Elige un número del 1 al ' + r.range + '. Si coincide con el suyo, bebes.</div>' + numGrid(r.range, 'answer', 'data-id="' + r.id + '"', 0, 'big2') + '</div>';
     });
     retos().forEach(function (r) {
       if (r.to === myId && r.status === 'resolved' && r.match && !r.paid)
@@ -528,7 +711,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
       if (r.from === myId && r.status === 'pending')
         out += '<div class="reto"><div class="h">' + retoLine(r) + '</div><div class="note">Esperando a que elija su número… ⏳ Tú has elegido el ' + r.fromPick + ' (de 1 a ' + r.range + ').</div></div>';
     });
-    var who = others.map(function (p) { return '<button class="wc" data-act="to" data-id="' + p.id + '" aria-pressed="' + (S.reto.to === p.id) + '"><span class="e">' + esc(p.emoji) + '</span><span class="t">' + esc(p.name) + '</span></button>'; }).join('');
+    var who = others.map(function (p) { return '<button class="wc" data-act="to" data-id="' + p.id + '" aria-pressed="' + (S.reto.to === p.id) + '"><span class="e">' + avi(p) + '</span><span class="t">' + esc(p.name) + '</span></button>'; }).join('');
     var ready = S.reto.to && S.reto.pick;
     var form = '<div class="card"><h2>🎲 Lanza un reto</h2>' + (others.length ?
       '<div><div class="note" style="margin-bottom:8px">1. ¿A quién?</div><div class="who">' + who + '</div></div>' +
@@ -545,7 +728,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
   }
   function shareCard() {
     var msg = '🪩 Entra a mi fiesta "' + S.d.name + '" en Copómetro y a ver quién aguanta más: ' + link();
-    return '<div class="card share"><a class="btn wa" href="https://wa.me/?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener">💬 Invitar por WhatsApp</a><button class="ghost" data-act="copy">📋 Copiar enlace</button></div>';
+    return '<div class="card share"><a class="btn wa" href="https://wa.me/?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener">💬 Invitar por WhatsApp</a><button class="ghost" data-act="qr">📱 Enseñar QR</button><button class="ghost" data-act="copy">📋 Copiar enlace</button></div>';
   }
   function partyView() {
     var pend = retos().filter(function (r) { return r.to === S.prof.pid && (r.status === 'pending' || (r.status === 'resolved' && r.match && !r.paid)); }).length;
@@ -554,6 +737,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     $app.innerHTML =
       '<div class="top"><h2>' + esc(S.d.name) + '</h2><div class="row"><span class="codepill">' + esc(S.code) + '</span><span class="note">' + players().length + ' en la fiesta</span><button class="ghost" data-act="edit">✏️ Yo</button><button class="ghost" data-act="leave">Salir</button></div></div>' +
       (S.tab === 'beber' || players().length < 2 ? shareCard() : '') + body +
+      '<div class="note center">Solo mayores de 18. Bebe con cabeza. <a href="#" data-act="privacy">Privacidad</a></div>' +
       '<nav><div class="in" role="tablist">' + tabs.map(function (t) {
         return '<button role="tab" data-act="tab" data-v="' + t[0] + '" aria-selected="' + (S.tab === t[0]) + '"><span class="i">' + t[1] + '</span>' + t[2] + (t[0] === 'retos' && pend ? '<span class="badge">' + pend + '</span>' : '') + '</button>';
       }).join('') + '</div></nav>';
@@ -574,14 +758,19 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
   $app.addEventListener('click', function (e) {
     var b = e.target.closest('[data-act]'); if (!b) return;
     var a = b.dataset.act, v = b.dataset.v;
-    if (a === 'emoji') { S.prof.emoji = v; save({ prof: S.prof }); $app.querySelectorAll('.emo').forEach(function (x) { x.setAttribute('aria-pressed', x.dataset.v === v); }); }
+    if (b.tagName === 'A' && b.getAttribute('href') === '#') e.preventDefault();
+    if (a === 'privacy') privacyModal();
+    else if (a === 'qr') qrModal();
+    else if (a === 'rmphoto') { S.prof.photo = ''; S.prof.removePhoto = true; save({ prof: S.prof }); refreshPhoto(); }
+    else if (a === 'wstory') { var slw = wrappedSlides(); shareStory(slw[Math.min(S.wrap.i, slw.length - 1)]); }
+    else if (a === 'emoji') { S.prof.emoji = v; save({ prof: S.prof }); $app.querySelectorAll('.emo').forEach(function (x) { x.setAttribute('aria-pressed', x.dataset.v === v); }); }
     else if (a === 'create') createParty();
-    else if (a === 'joincode') { if (!readProf()) return setErr('Ponte un nombre para salir en el ranking.'); var c = document.getElementById('in-code').value.trim().toUpperCase(); if (!/^[A-Z]{4}$/.test(c)) return setErr('El código son 4 letras.'); joinCode(c); }
-    else if (a === 'acceptinvite') { if (!readProf()) return setErr('Ponte un nombre para salir en el ranking.'); joinCode(S.inviteCode); }
-    else if (a === 'resume') { if (!S.prof.name) return; joinCode(S.last.code); }
+    else if (a === 'joincode') { readProf(); var pe = profError(); if (pe) return setErr(pe); var c = document.getElementById('in-code').value.trim().toUpperCase(); if (!/^[A-Z]{4}$/.test(c)) return setErr('El código son 4 letras.'); joinCode(c); }
+    else if (a === 'acceptinvite') { readProf(); var pe2 = profError(); if (pe2) return setErr(pe2); joinCode(S.inviteCode); }
+    else if (a === 'resume') { if (profError()) return toast('Completa tu perfil primero'); joinCode(S.last.code); }
     else if (a === 'edit') editView();
     else if (a === 'cancel') { S.view = 'party'; render(); }
-    else if (a === 'saveprof') { if (!readProf()) return setErr('Ponte un nombre.'); S.view = 'party'; act('join', profBody({}), 'Datos guardados'); }
+    else if (a === 'saveprof') { readProf(); var pe3 = profError(); if (pe3) return setErr(pe3); S.view = 'party'; act('join', profBody({}), 'Datos guardados'); }
     else if (a === 'tab') { S.tab = v; render(); window.scrollTo(0, 0); }
     else if (a === 'add') addDrink(b.dataset.k, 1);
     else if (a === 'sub') addDrink(b.dataset.k, -1);
@@ -608,6 +797,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
       try { navigator.clipboard.writeText(link()).then(ok, ko); } catch (x) { ko(); }
     }
   });
+  $app.addEventListener('change', function (e) { if ((e.target.id === 'in-cam' || e.target.id === 'in-gal') && e.target.files) handlePhoto(e.target.files[0]); });
   $app.addEventListener('input', function (e) { if (e.target.id === 'in-code') e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, ''); });
 
   /* ---------- boot ---------- */
