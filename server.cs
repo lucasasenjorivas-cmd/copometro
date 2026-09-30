@@ -12,6 +12,7 @@ public class Player
 {
     public string id, name, emoji, ig;
     public Dictionary<string, int> drinks = new Dictionary<string, int>();
+    public List<long> times = new List<long>();
     public long joined;
 }
 
@@ -25,8 +26,9 @@ public class Reto
 
 public class Party
 {
-    public string code, name;
-    public long created;
+    public string code, name, host;
+    public long created, finishedAt;
+    public bool finished;
     public int v;
     public List<Player> players = new List<Player>();
     public List<Reto> retos = new List<Reto>();
@@ -45,7 +47,90 @@ public static class Program
     static readonly Random Rnd = new Random();
     static Dictionary<string, Party> Parties = new Dictionary<string, Party>();
     static string Dir, DataFile;
-    static readonly string[] Kinds = { "cana", "copa", "chupito", "vino" };
+    static readonly string[] Kinds = { "cana", "copa", "chupito", "vino", "agua", "vomito" };
+    static bool Alc(string k) { return k == "cana" || k == "copa" || k == "chupito" || k == "vino"; }
+
+    // Persistencia opcional en Upstash Redis (REST). Sin variables de entorno solo se guarda en data.json
+    static string RUrl, RTok, PersistErr = "";
+    static int PersistOk = 0;
+    static readonly HashSet<string> Dirty = new HashSet<string>();
+
+    static string Redis(string path, string body)
+    {
+        HttpWebRequest req = (HttpWebRequest)WebRequest.Create(RUrl.TrimEnd('/') + (path == "" ? "" : "/" + path));
+        req.Method = "POST";
+        req.Headers["Authorization"] = "Bearer " + RTok;
+        req.ContentType = "application/json";
+        req.Timeout = 15000;
+        byte[] b = Encoding.UTF8.GetBytes(body);
+        req.ContentLength = b.Length;
+        using (Stream s = req.GetRequestStream()) s.Write(b, 0, b.Length);
+        using (HttpWebResponse r = (HttpWebResponse)req.GetResponse())
+        using (StreamReader sr = new StreamReader(r.GetResponseStream(), Encoding.UTF8))
+            return sr.ReadToEnd();
+    }
+
+    static void LoadFromRedis()
+    {
+        string cursor = "0";
+        int loaded = 0;
+        do
+        {
+            string res = Redis("", J.Serialize(new object[] { "SCAN", cursor, "MATCH", "copometro:p:*", "COUNT", "200" }));
+            Dictionary<string, object> d = (Dictionary<string, object>)J.DeserializeObject(res);
+            object[] arr = (object[])d["result"];
+            cursor = Convert.ToString(arr[0]);
+            object[] keys = (object[])arr[1];
+            if (keys.Length > 0)
+            {
+                List<object> cmds = new List<object>();
+                foreach (object k in keys) cmds.Add(new object[] { "GET", Convert.ToString(k) });
+                string r2 = Redis("pipeline", J.Serialize(cmds));
+                object[] items = (object[])J.DeserializeObject(r2);
+                foreach (object it in items)
+                {
+                    Dictionary<string, object> di = (Dictionary<string, object>)it;
+                    if (di.ContainsKey("result") && di["result"] != null)
+                    {
+                        Party p = J.Deserialize<Party>(Convert.ToString(di["result"]));
+                        if (p != null && p.code != null) { Parties[p.code] = p; loaded++; }
+                    }
+                }
+            }
+        } while (cursor != "0");
+        Console.WriteLine("Redis: " + loaded + " fiestas cargadas");
+    }
+
+    static void Flusher()
+    {
+        while (true)
+        {
+            Thread.Sleep(1500);
+            List<string> codes = null;
+            lock (L) { if (Dirty.Count > 0) { codes = new List<string>(Dirty); Dirty.Clear(); } }
+            if (codes == null) continue;
+            try
+            {
+                List<object> cmds = new List<object>();
+                lock (L)
+                {
+                    foreach (string c in codes)
+                    {
+                        Party p;
+                        if (Parties.TryGetValue(c, out p)) cmds.Add(new object[] { "SET", "copometro:p:" + c, J.Serialize(p), "EX", "2592000" });
+                    }
+                }
+                if (cmds.Count > 0) Redis("pipeline", J.Serialize(cmds));
+                PersistOk++; PersistErr = "";
+            }
+            catch (Exception ex)
+            {
+                PersistErr = ex.Message;
+                Console.WriteLine("Redis ERROR: " + ex.Message);
+                lock (L) { foreach (string c in codes) Dirty.Add(c); }
+            }
+        }
+    }
 
     public static void Main(string[] args)
     {
@@ -62,6 +147,18 @@ public static class Program
                 Parties = J.Deserialize<Dictionary<string, Party>>(File.ReadAllText(DataFile, Encoding.UTF8));
         }
         catch { Parties = new Dictionary<string, Party>(); }
+
+        RUrl = Environment.GetEnvironmentVariable("UPSTASH_REDIS_REST_URL");
+        RTok = Environment.GetEnvironmentVariable("UPSTASH_REDIS_REST_TOKEN");
+        if (string.IsNullOrEmpty(RUrl) || string.IsNullOrEmpty(RTok)) { RUrl = null; Console.WriteLine("Sin base de datos externa: solo data.json"); }
+        else
+        {
+            try { LoadFromRedis(); }
+            catch (Exception ex) { PersistErr = ex.Message; Console.WriteLine("Redis ERROR al cargar: " + ex.Message); }
+            Thread ft = new Thread(Flusher);
+            ft.IsBackground = true;
+            ft.Start();
+        }
 
         TcpListener l = new TcpListener(IPAddress.Any, port);
         l.Start();
@@ -282,10 +379,19 @@ public static class Program
             rs.Add(d);
         }
         Dictionary<string, object> v = new Dictionary<string, object>();
-        v["code"] = p.code; v["name"] = p.name; v["v"] = p.v; v["players"] = p.players; v["retos"] = rs;
+        List<object> ps = new List<object>();
+        foreach (Player pl in p.players)
+        {
+            Dictionary<string, object> d = new Dictionary<string, object>();
+            d["id"] = pl.id; d["name"] = pl.name; d["emoji"] = pl.emoji; d["ig"] = pl.ig; d["drinks"] = pl.drinks; d["joined"] = pl.joined;
+            if (p.finished) d["times"] = pl.times;
+            ps.Add(d);
+        }
+        v["code"] = p.code; v["name"] = p.name; v["v"] = p.v; v["players"] = ps; v["retos"] = rs;
+        v["finished"] = p.finished; v["finishedAt"] = p.finishedAt; v["created"] = p.created; v["host"] = p.host ?? "";
         return v;
     }
-    static void Bump(Party p) { p.v++; Save(); }
+    static void Bump(Party p) { p.v++; Dirty.Add(p.code); Save(); }
 
     // ---------- API ----------
     static object Api(string method, string[] seg, Dictionary<string, string> q, string body)
@@ -297,6 +403,14 @@ public static class Program
             if (b == null) throw new ApiError(400, "Cuerpo no valido");
         }
 
+        if (seg[0] == "status")
+        {
+            Dictionary<string, object> st = new Dictionary<string, object>();
+            st["persist"] = RUrl != null; st["flushes"] = PersistOk; st["error"] = PersistErr;
+            lock (L) { st["parties"] = Parties.Count; }
+            return st;
+        }
+
         lock (L)
         {
             if (seg[0] == "create" && method == "POST")
@@ -304,7 +418,7 @@ public static class Program
                 string pid = Pid(b);
                 if (Parties.Count > 3000) throw new ApiError(400, "Demasiadas fiestas");
                 Party p = new Party();
-                p.code = NewCode(); p.created = Now();
+                p.code = NewCode(); p.created = Now(); p.host = pid;
                 p.name = Clean(Str(b, "party"), 28);
                 Player me = Upsert(p, b, pid);
                 if (p.name == "") p.name = "Fiesta de " + me.name;
@@ -338,18 +452,36 @@ public static class Program
                     Player me = Find(p, pid);
                     if (me == null) throw new ApiError(400, "Primero tienes que unirte a la fiesta");
 
+                    if (act == "finish" || act == "reopen")
+                    {
+                        if (!string.IsNullOrEmpty(p.host) && p.host != pid) throw new ApiError(400, "Solo quien creo la fiesta puede hacerlo");
+                        if (act == "finish" && !p.finished) { p.finished = true; p.finishedAt = Now(); Bump(p); }
+                        if (act == "reopen" && p.finished) { p.finished = false; p.finishedAt = 0; Bump(p); }
+                        return View(p, pid);
+                    }
                     if (act == "drink")
                     {
+                        if (p.finished) throw new ApiError(400, "La fiesta ya ha terminado");
                         string k = Str(b, "k");
                         if (Array.IndexOf(Kinds, k) < 0) throw new ApiError(400, "Bebida no valida");
                         int delta = Int(b, "delta") >= 0 ? 1 : -1;
                         int cur; me.drinks.TryGetValue(k, out cur);
                         int nv = Math.Max(0, cur + delta);
-                        if (nv != cur) { me.drinks[k] = nv; Bump(p); }
+                        if (nv != cur)
+                        {
+                            me.drinks[k] = nv;
+                            if (Alc(k))
+                            {
+                                if (delta > 0) { me.times.Add(Now()); if (me.times.Count > 400) me.times.RemoveAt(0); }
+                                else if (me.times.Count > 0) me.times.RemoveAt(me.times.Count - 1);
+                            }
+                            Bump(p);
+                        }
                         return View(p, pid);
                     }
                     if (act == "reto")
                     {
+                        if (p.finished) throw new ApiError(400, "La fiesta ya ha terminado");
                         Player to = Find(p, Str(b, "to"));
                         string kind = Str(b, "kind");
                         int range = Int(b, "range"), pick = Int(b, "pick");
