@@ -10,7 +10,8 @@ using System.Web.Script.Serialization;
 
 public class Player
 {
-    public string id, name, emoji, ig;
+    public string id, name, emoji, ig, photo;
+    public int photoV;
     public Dictionary<string, int> drinks = new Dictionary<string, int>();
     public List<long> times = new List<long>();
     public long joined;
@@ -251,6 +252,30 @@ public static class Program
             try { q[Uri.UnescapeDataString(k)] = Uri.UnescapeDataString(v); } catch { }
         }
 
+        if (path.StartsWith("/photo/"))
+        {
+            string[] pp = path.Substring(7).Split('/');
+            byte[] img = null;
+            if (pp.Length == 2)
+            {
+                lock (L)
+                {
+                    Party party;
+                    if (Parties.TryGetValue(pp[0].ToUpperInvariant(), out party))
+                    {
+                        Player pl = Find(party, pp[1]);
+                        if (pl != null && pl.photo != null)
+                        {
+                            try { img = Convert.FromBase64String(pl.photo.Substring(pl.photo.IndexOf(',') + 1)); } catch { img = null; }
+                        }
+                    }
+                }
+            }
+            if (img != null) Write(s, 200, "image/jpeg", img, "public, max-age=86400");
+            else Write(s, 404, "text/plain", new byte[0]);
+            return;
+        }
+
         if (path.StartsWith("/api/"))
         {
             try
@@ -280,9 +305,14 @@ public static class Program
 
     static void Write(NetworkStream s, int status, string type, byte[] body)
     {
+        Write(s, status, type, body, "no-store");
+    }
+
+    static void Write(NetworkStream s, int status, string type, byte[] body, string cache)
+    {
         string reason = status == 200 ? "OK" : status == 204 ? "No Content" : status == 400 ? "Bad Request" : status == 404 ? "Not Found" : status == 413 ? "Payload Too Large" : "Error";
         string h = "HTTP/1.1 " + status + " " + reason + "\r\nContent-Type: " + type + "\r\nContent-Length: " + body.Length +
-                   "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
+                   "\r\nCache-Control: " + cache + "\r\nConnection: close\r\n\r\n";
         byte[] hb = Encoding.ASCII.GetBytes(h);
         s.Write(hb, 0, hb.Length);
         if (body.Length > 0) s.Write(body, 0, body.Length);
@@ -349,6 +379,7 @@ public static class Program
     }
     static Player Upsert(Party p, Dictionary<string, object> b, string pid)
     {
+        if (Str(b, "adult").ToLowerInvariant() != "true") throw new ApiError(400, "Tienes que confirmar que eres mayor de 18 anos");
         string name = Clean(Str(b, "name"), 18);
         if (name == "") throw new ApiError(400, "Falta tu nombre");
         string emoji = Clean(Str(b, "emoji"), 4);
@@ -361,6 +392,13 @@ public static class Program
             p.players.Add(pl);
         }
         pl.name = name; pl.emoji = emoji; pl.ig = Ig(Str(b, "ig"));
+        string ph = Str(b, "photo");
+        if (ph != "")
+        {
+            if (ph.Length > 24000 || !Regex.IsMatch(ph, "^data:image/jpeg;base64,[A-Za-z0-9+/=]+$")) throw new ApiError(400, "Foto no valida");
+            pl.photo = ph; pl.photoV++;
+        }
+        else if (Str(b, "removePhoto").ToLowerInvariant() == "true" && pl.photo != null) { pl.photo = null; pl.photoV++; }
         return pl;
     }
     static object View(Party p, string pid)
@@ -383,7 +421,7 @@ public static class Program
         foreach (Player pl in p.players)
         {
             Dictionary<string, object> d = new Dictionary<string, object>();
-            d["id"] = pl.id; d["name"] = pl.name; d["emoji"] = pl.emoji; d["ig"] = pl.ig; d["drinks"] = pl.drinks; d["joined"] = pl.joined;
+            d["id"] = pl.id; d["name"] = pl.name; d["emoji"] = pl.emoji; d["ig"] = pl.ig; d["drinks"] = pl.drinks; d["joined"] = pl.joined; d["ph"] = pl.photo != null ? pl.photoV : 0;
             if (p.finished) d["times"] = pl.times;
             ps.Add(d);
         }
