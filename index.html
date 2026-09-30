@@ -88,6 +88,40 @@ input.code { font-family: var(--display); font-size: 26px; text-align: center; l
 .drink .plus { flex: 1; font-family: var(--display); font-size: 20px; background: var(--cyan); color: #06222b; border-radius: 12px; padding: 10px; box-shadow: 0 4px 0 #0a8ba1; touch-action: manipulation; }
 .drink .plus:active { transform: translateY(3px); box-shadow: 0 1px 0 #0a8ba1; }
 .drink .minus { width: 44px; background: rgba(255,255,255,.1); border-radius: 12px; font-weight: 800; font-size: 20px; touch-action: manipulation; }
+.drink.extra { border-color: rgba(25,227,255,.25); }
+.drink .plus[disabled], .drink .minus[disabled] { opacity: .4; pointer-events: none; }
+.wr { border-radius: 26px; padding: 18px; min-height: calc(100vh - 40px); display: flex; flex-direction: column; gap: 16px; border: 2px solid rgba(255,255,255,.14); }
+.wr.bg-pink { background: linear-gradient(160deg, #ff2e97, #6a1bb0 75%); }
+.wr.bg-cyan { background: linear-gradient(160deg, #19e3ff, #1b3fa8 75%); }
+.wr.bg-lime { background: linear-gradient(160deg, #b7f023, #0f7a55 75%); }
+.wr.bg-gold { background: linear-gradient(160deg, #ffc21f, #c2410c 80%); }
+.wr.bg-red { background: linear-gradient(160deg, #ff4b4b, #5b1170 80%); }
+.wr-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.wr-dots { display: flex; gap: 4px; flex: 1; min-width: 0; }
+.wr-dots i { flex: 1; height: 4px; border-radius: 4px; background: rgba(255,255,255,.3); }
+.wr-dots i.on, .wr-dots i.done { background: #fff; }
+.wr-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; animation: wpop .45s cubic-bezier(.3,1.5,.5,1); }
+@keyframes wpop { from { transform: scale(.85); opacity: 0; } }
+.wr-kicker { font-family: var(--display); font-size: 17px; letter-spacing: .06em; text-shadow: 0 2px 0 rgba(0,0,0,.25); text-wrap: balance; }
+.wr-emoji { font-size: 96px; line-height: 1; filter: drop-shadow(0 6px 16px rgba(0,0,0,.35)); }
+.wr-who { font-family: var(--display); font-size: 30px; display: flex; align-items: center; gap: 10px; overflow-wrap: anywhere; justify-content: center; }
+.wr-who span { font-size: 44px; }
+.wr-big { font-family: var(--display); font-size: 84px; line-height: 1; text-shadow: 0 4px 0 rgba(0,0,0,.25); font-variant-numeric: tabular-nums; }
+.wr-unit { font-weight: 800; font-size: 18px; text-transform: uppercase; letter-spacing: .08em; }
+.wr-line { font-size: 18px; font-weight: 500; max-width: 26ch; text-wrap: balance; }
+.wr-nav { display: flex; gap: 10px; align-items: center; }
+.wr-nav .btn { flex: 1; width: auto; }
+.wr-nav .ghost { background: rgba(0,0,0,.25); padding: 14px 16px; }
+.wr .ghost { background: rgba(0,0,0,.25); }
+.wr .ghost[disabled] { opacity: .4; pointer-events: none; }
+.wr-podium { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.wr-pl { display: grid; grid-template-columns: 34px 40px 1fr auto; gap: 8px; align-items: center; background: rgba(0,0,0,.25); border-radius: 16px; padding: 10px 12px; text-align: left; }
+.wr-pl .m { font-size: 26px; } .wr-pl .a { font-size: 30px; } .wr-pl b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wr-pl .v { font-family: var(--display); font-size: 26px; }
+.wr-tot { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; }
+.wr-tot div { background: rgba(0,0,0,.25); border-radius: 14px; padding: 10px 4px; font-size: 11px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.wr-tot b { font-family: var(--display); font-size: 24px; font-weight: 400; }
+.wr .btn { box-shadow: 0 5px 0 rgba(0,0,0,.35); }
 .podium { display: flex; align-items: flex-end; justify-content: center; gap: 10px; padding-top: 26px; }
 .pod { flex: 1; min-width: 0; max-width: 140px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
 .pod .av { font-size: 40px; line-height: 1; position: relative; }
@@ -159,12 +193,17 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
 
 <script>
 (function () {
-  var KINDS = [
+  var ALC = [
     { k: 'cana', e: '🍺', n: 'Cerveza' },
     { k: 'copa', e: '🍹', n: 'Copa' },
     { k: 'chupito', e: '🥃', n: 'Chupito' },
     { k: 'vino', e: '🍷', n: 'Vino' }
   ];
+  var EXTRA = [
+    { k: 'agua', e: '💧', n: 'Agua' },
+    { k: 'vomito', e: '🤮', n: 'Vómito' }
+  ];
+  var KINDS = ALC.concat(EXTRA);
   var AVATARS = ['🕺', '💃', '🦄', '🐸', '🤠', '😎', '🥳', '🦖', '🐙', '🤡', '👽', '🍕'];
   var LEVELS = [[0, 'Sobrio (sospechosamente)'], [1, 'Calentando motores'], [3, 'Ya se ríe de todo'], [5, 'Baila sin música'], [7, 'Le escribe a su ex'], [10, 'Leyenda. Que alguien le dé agua']];
   var LS = 'copometro.v2';
@@ -174,7 +213,8 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     prof: { pid: '', name: '', emoji: '🕺', ig: '' },
     code: '', d: null, tab: 'beber', view: 'boot', inviteCode: '', inviteName: '',
     reto: { to: '', kind: 'chupito', range: 5, pick: 0 },
-    err: '', inflight: 0, seen: null, timer: null, fails: 0, last: ''
+    err: '', inflight: 0, seen: null, timer: null, fails: 0, last: '',
+    wrap: { open: false, i: 0, c: -1 }, confirmFinish: false, lastFinished: null
   };
 
   /* ---------- utils ---------- */
@@ -183,7 +223,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
   function save(o) { try { var c = load(); for (var k in o) c[k] = o[k]; localStorage.setItem(LS, JSON.stringify(c)); } catch (e) {} }
   function rid(n) { var a = 'abcdefghijklmnopqrstuvwxyz0123456789', s = ''; for (var i = 0; i < n; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
   function cleanIg(v) { v = String(v || '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').split(/[/?#]/)[0]; return v.replace(/[^A-Za-z0-9._]/g, '').slice(0, 30); }
-  function total(d) { var t = 0; KINDS.forEach(function (k) { t += (d && d[k.k]) || 0; }); return t; }
+  function total(d) { var t = 0; ALC.forEach(function (k) { t += (d && d[k.k]) || 0; }); return t; }
   function levelOf(n) { var l = LEVELS[0][1]; LEVELS.forEach(function (x) { if (n >= x[0]) l = x[1]; }); return l; }
   function players() { return (S.d && S.d.players) || []; }
   function retos() { return (S.d && S.d.retos) || []; }
@@ -268,7 +308,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
 
   /* ---------- session ---------- */
   function startParty(view) {
-    S.code = view.code; S.d = view; S.seen = null; S.tab = 'beber'; S.reto = { to: '', kind: 'chupito', range: 5, pick: 0 }; S.view = 'party';
+    S.code = view.code; S.d = view; S.seen = null; S.tab = 'beber'; S.lastFinished = null; S.wrap = { open: false, i: 0, c: -1 }; S.reto = { to: '', kind: 'chupito', range: 5, pick: 0 }; S.view = 'party';
     save({ last: { code: view.code, name: view.name } });
     try { history.replaceState(null, '', '/' + view.code); } catch (e) {}
     seenUpdate(view, true); render(); poll();
@@ -359,12 +399,92 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
       '<div class="lvl">' + esc(levelOf(Math.round(avg))) + '</div><div class="note">' + sum + ' tragos entre ' + n + ' ' + (n === 1 ? 'persona' : 'personas') + '</div></div>';
   }
   function beberView() {
-    var m = me(), d = (m && m.drinks) || {}, t = total(d);
-    var cards = KINDS.map(function (k) {
-      return '<div class="drink"><div class="e">' + k.e + '</div><div class="n">' + k.n + '</div><div class="c">' + (d[k.k] || 0) + '</div>' +
-        '<div class="acts"><button class="plus" data-act="add" data-k="' + k.k + '" aria-label="Sumar ' + k.n + '">+1</button><button class="minus" data-act="sub" data-k="' + k.k + '" aria-label="Restar ' + k.n + '">−</button></div></div>';
-    }).join('');
-    return gauge() + '<div class="card mine"><h2>Tus tragos</h2><div class="big">' + t + '</div><div class="note">' + esc(levelOf(t)) + '</div><div class="drinks">' + cards + '</div></div>';
+    var m = me(), d = (m && m.drinks) || {}, t = total(d), fin = S.d.finished ? ' disabled' : '';
+    var card = function (k, cls) {
+      return '<div class="drink ' + (cls || '') + '"><div class="e">' + k.e + '</div><div class="n">' + k.n + '</div><div class="c">' + (d[k.k] || 0) + '</div>' +
+        '<div class="acts"><button class="plus" data-act="add" data-k="' + k.k + '"' + fin + ' aria-label="Sumar ' + k.n + '">+1</button><button class="minus" data-act="sub" data-k="' + k.k + '"' + fin + ' aria-label="Restar ' + k.n + '">−</button></div></div>';
+    };
+    return gauge() +
+      (S.d.finished ? '<div class="card"><h2>🏁 Fiesta terminada</h2><button class="btn" data-act="wopen">🎬 Ver el Wrapped</button></div>' : '') +
+      '<div class="card mine"><h2>Tus tragos</h2><div class="big">' + t + '</div><div class="note">' + esc(levelOf(t)) + '</div><div class="drinks">' + ALC.map(function (k) { return card(k); }).join('') + '</div></div>' +
+      '<div class="card mine"><h2>Modo supervivencia</h2><div class="note">No cuentan como tragos, pero salen en el Wrapped. Se apunta, no se juzga.</div><div class="drinks">' + EXTRA.map(function (k) { return card(k, 'extra'); }).join('') + '</div></div>';
+  }
+
+  /* ---------- wrapped ---------- */
+  function maxBy(arr, f) { var best = null, bv = 0; arr.forEach(function (x) { var v = f(x); if (v > bv) { bv = v; best = x; } }); return best ? { p: best, v: bv } : null; }
+  function sprint(p) {
+    var t = (p.times || []).slice().sort(function (a, b) { return a - b; }), best = 0, j = 0;
+    for (var i = 0; i < t.length; i++) { while (t[i] - t[j] > 30 * 60000) j++; best = Math.max(best, i - j + 1); }
+    return best;
+  }
+  function dur(ms) { var m = Math.max(1, Math.round(ms / 60000)), h = Math.floor(m / 60); return h ? h + ' h ' + (m % 60) + ' min' : m + ' min'; }
+  function wrappedSlides() {
+    var ps = players(), out = [], st = {};
+    ps.forEach(function (p) { st[p.id] = { sent: 0, lost: 0, dodged: 0 }; });
+    retos().forEach(function (r) { if (st[r.from]) st[r.from].sent++; if (r.status === 'resolved' && st[r.to]) { if (r.match) st[r.to].lost++; else st[r.to].dodged++; } });
+    var sumAlc = 0, sumVom = 0, sumAgua = 0, sumRetos = retos().length;
+    ps.forEach(function (p) { sumAlc += total(p.drinks); sumVom += p.drinks.vomito || 0; sumAgua += p.drinks.agua || 0; });
+    var d = function (p, k) { return p.drinks[k] || 0; };
+    var who = function (r) { return { emoji: r.p.emoji, name: r.p.name }; };
+    var length = S.d.finishedAt && S.d.created ? dur(S.d.finishedAt - S.d.created) : '';
+    out.push({ bg: 'pink', emoji: '🎉', kicker: 'WRAPPED', big: sumAlc, unit: 'tragos en total', line: '«' + S.d.name + '»: ' + ps.length + (ps.length === 1 ? ' valiente' : ' valientes') + (length ? ' durante ' + length : '') + '.', confetti: true });
+    var rey = maxBy(ps, function (p) { return total(p.drinks); });
+    if (rey) out.push({ bg: 'gold', emoji: '👑', kicker: 'LA LEYENDA DE LA NOCHE', who: who(rey), big: rey.v, unit: 'tragos', line: rey.v >= 10 ? 'Su hígado ha pedido un abogado.' : 'Sin freno y sin marcha atrás.', confetti: true });
+    if (ps.length > 1) {
+      var mn = null; ps.forEach(function (p) { if (!mn || total(p.drinks) < total(mn.drinks)) mn = p; });
+      if (mn && rey && total(mn.drinks) < rey.v) out.push({ bg: 'cyan', emoji: '🥤', kicker: 'EL MÁS SOBRIO', who: { emoji: mn.emoji, name: mn.name }, big: total(mn.drinks), unit: total(mn.drinks) === 1 ? 'trago' : 'tragos', line: total(mn.drinks) === 0 ? 'Cero tragos. Santidad o tacañería.' : 'Alguien tenía que ir a por los abrigos.' });
+    }
+    var vom = maxBy(ps, function (p) { return d(p, 'vomito'); });
+    if (vom) out.push({ bg: 'lime', emoji: '🤮', kicker: 'CAMPEÓN DEL VÓMITO', who: who({ p: vom.p }), big: vom.v, unit: vom.v === 1 ? 'vez' : 'veces', line: 'Lo devolvió todo. Hasta la dignidad.' });
+    else out.push({ bg: 'lime', emoji: '✨', kicker: 'NOCHE LIMPIA', line: 'Nadie ha vomitado. O sois unos campeones o nadie lo ha apuntado.' });
+    var ag = maxBy(ps, function (p) { return d(p, 'agua'); });
+    if (ag) out.push({ bg: 'cyan', emoji: '💧', kicker: 'EL HIDRATADO', who: who(ag), big: ag.v, unit: ag.v === 1 ? 'vaso de agua' : 'vasos de agua', line: 'Mañana le dará las gracias a su yo de hoy.' });
+    else out.push({ bg: 'red', emoji: '🏜️', kicker: 'NADIE BEBIÓ AGUA', line: 'El domingo os va a doler.' });
+    var ch = maxBy(ps, function (p) { return d(p, 'chupito'); });
+    if (ch) out.push({ bg: 'pink', emoji: '🥃', kicker: 'REY DEL CHUPITO', who: who(ch), big: ch.v, unit: ch.v === 1 ? 'chupito' : 'chupitos', line: 'Sin vaso, sin miedo y sin memoria.' });
+    var ca = maxBy(ps, function (p) { return d(p, 'cana'); });
+    if (ca) out.push({ bg: 'gold', emoji: '🍺', kicker: 'EL CERVECERO', who: who(ca), big: ca.v, unit: ca.v === 1 ? 'cerveza' : 'cervezas', line: 'Con espuma todo se olvida mejor.' });
+    var co = maxBy(ps, function (p) { return d(p, 'copa'); });
+    if (co) out.push({ bg: 'pink', emoji: '🍹', kicker: 'MAESTRO DE LA COPA', who: who(co), big: co.v, unit: co.v === 1 ? 'copa' : 'copas', line: 'Hielo, mezcla y malas ideas.' });
+    var vi = maxBy(ps, function (p) { return d(p, 'vino'); });
+    if (vi) out.push({ bg: 'red', emoji: '🍷', kicker: 'EL SOMMELIER', who: who(vi), big: vi.v, unit: vi.v === 1 ? 'copa de vino' : 'copas de vino', line: 'Meñique levantado y opiniones firmes.' });
+    var sp = maxBy(ps, sprint);
+    if (sp && sp.v >= 3) out.push({ bg: 'cyan', emoji: '⚡', kicker: 'EL MÁS RÁPIDO', who: who(sp), big: sp.v, unit: 'tragos en 30 minutos', line: 'Iba con prisa. Nadie sabe por qué.' });
+    var rt = maxBy(ps, function (p) { return st[p.id].sent; });
+    if (rt) out.push({ bg: 'pink', emoji: '🎲', kicker: 'EL MÁS RETADOR', who: who(rt), big: rt.v, unit: rt.v === 1 ? 'reto lanzado' : 'retos lanzados', line: 'Repartía chupitos como si pagara otro.' });
+    var lo = maxBy(ps, function (p) { return st[p.id].lost; });
+    if (lo) out.push({ bg: 'red', emoji: '😈', kicker: 'EL GAFADO', who: who(lo), big: lo.v, unit: lo.v === 1 ? 'reto perdido' : 'retos perdidos', line: 'Los números le tienen manía.' });
+    var dg = maxBy(ps, function (p) { return st[p.id].dodged; });
+    if (dg) out.push({ bg: 'lime', emoji: '🍀', kicker: 'EL SUERTUDO', who: who(dg), big: dg.v, unit: dg.v === 1 ? 'reto esquivado' : 'retos esquivados', line: 'Adivina la mente de los demás. Sospechoso.' });
+    var rank = ps.slice().sort(function (a, b) { return total(b.drinks) - total(a.drinks); }).slice(0, 3);
+    out.push({ bg: 'gold', emoji: '🏆', kicker: 'PODIO FINAL', podium: rank, totals: { alc: sumAlc, vom: sumVom, agua: sumAgua, retos: sumRetos }, last: true });
+    return out;
+  }
+  function wrappedText(sl) {
+    var t = '🪩 Wrapped de «' + S.d.name + '» en Copómetro:\n';
+    sl.forEach(function (s) { if (s.who) t += s.emoji + ' ' + s.kicker.toLowerCase() + ': ' + s.who.name + ' (' + s.big + ' ' + s.unit + ')\n'; });
+    return t + '\n' + link();
+  }
+  function wrappedView() {
+    var sl = wrappedSlides(), i = Math.min(S.wrap.i, sl.length - 1), s = sl[i], host = !S.d.host || S.d.host === S.prof.pid;
+    var dots = sl.map(function (x, k) { return '<i class="' + (k === i ? 'on' : k < i ? 'done' : '') + '"></i>'; }).join('');
+    var body = '';
+    if (s.last) {
+      body = '<div class="wr-kicker">' + s.kicker + '</div><div class="wr-podium">' + s.podium.map(function (p, k) { return '<div class="wr-pl"><span class="m">' + ['🥇', '🥈', '🥉'][k] + '</span><span class="a">' + esc(p.emoji) + '</span><b>' + esc(p.name) + '</b><span class="v">' + total(p.drinks) + '</span></div>'; }).join('') + '</div>' +
+        '<div class="wr-tot"><div><b>' + s.totals.alc + '</b>tragos</div><div><b>' + s.totals.agua + '</b>💧 aguas</div><div><b>' + s.totals.vom + '</b>🤮 vómitos</div><div><b>' + s.totals.retos + '</b>🎲 retos</div></div>' +
+        '<a class="btn wa" href="https://wa.me/?text=' + encodeURIComponent(wrappedText(sl)) + '" target="_blank" rel="noopener">💬 Compartir por WhatsApp</a>' +
+        '<button class="ghost" data-act="wrestart">↺ Ver otra vez</button>' +
+        (host ? '<button class="ghost" data-act="reopen">🔓 Reabrir la fiesta</button>' : '');
+    } else {
+      body = '<div class="wr-kicker">' + esc(s.kicker) + '</div><div class="wr-emoji">' + s.emoji + '</div>' +
+        (s.who ? '<div class="wr-who"><span>' + esc(s.who.emoji) + '</span>' + esc(s.who.name) + '</div>' : '') +
+        (s.big !== undefined ? '<div class="wr-big">' + s.big + '</div><div class="wr-unit">' + esc(s.unit) + '</div>' : '') +
+        '<div class="wr-line">' + esc(s.line) + '</div>';
+    }
+    if (s.confetti && S.wrap.c !== i) { S.wrap.c = i; setTimeout(function () { confetti(['🥂', '🍾', '🎉']); }, 200); }
+    return '<div class="wr bg-' + s.bg + '"><div class="wr-top"><div class="wr-dots">' + dots + '</div><button class="ghost" data-act="wclose">✕ Cerrar</button></div>' +
+      '<div class="wr-body" key="' + i + '">' + body + '</div>' +
+      '<div class="wr-nav"><button class="ghost" data-act="wprev"' + (i === 0 ? ' disabled' : '') + '>← Atrás</button>' + (s.last ? '' : '<button class="btn" data-act="wnext">Siguiente →</button>') + '</div></div>';
   }
   function rankView() {
     var arr = players().slice().sort(function (a, b) { return total(b.drinks) - total(a.drinks) || a.joined - b.joined; });
@@ -382,7 +502,11 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
         '<div class="mid"><div class="nm">' + esc(p.name) + (p.id === S.prof.pid ? '<span class="tg">TÚ</span>' : '') + '</div><div class="lb">' + esc(levelOf(t)) + '</div>' +
         '<div class="bar"><i style="width:' + Math.round(t / max * 100) + '%"></i></div><div class="brk">' + (brk || 'Aún nada') + '</div>' + ig + '</div><div class="tot">' + t + '</div></div>';
     }).join('');
-    return '<div class="card"><h2>🏆 Ranking</h2>' + pod + '<div class="rows">' + rows + '</div><div class="note">Toca el Instagram de cada uno para cotillear cómo va la fiesta.</div></div>';
+    var host = !S.d.host || S.d.host === S.prof.pid;
+    var fin = S.d.finished ? '<div class="card"><h2>🏁 Fiesta terminada</h2><button class="btn" data-act="wopen">🎬 Ver el Wrapped</button></div>'
+      : host ? '<div class="card"><h2>🏁 ¿Se acabó?</h2><div class="note">Cierra la fiesta para todos y saca el Wrapped con premios para cada uno.</div><button class="btn li" data-act="finish">' + (S.confirmFinish ? '¿Seguro? Pulsa otra vez' : 'Terminar fiesta y ver Wrapped') + '</button></div>'
+      : '<div class="note" style="text-align:center">Cuando quien creó la fiesta la termine, saldrá el Wrapped para todos. 🎬</div>';
+    return '<div class="card"><h2>🏆 Ranking</h2>' + pod + '<div class="rows">' + rows + '</div><div class="note">Toca el Instagram de cada uno para cotillear cómo va la fiesta.</div></div>' + fin;
   }
   function retoLine(r) { return '<b>' + esc(nm(r.from)) + '</b> ' + esc(em(r.from)) + ' → <b>' + esc(nm(r.to)) + '</b> ' + esc(em(r.to)) + ' · ' + (r.kind === 'chupito' ? '🥃 chupito' : '🍹 trago'); }
   function numGrid(range, act, extra, sel, cls) {
@@ -412,7 +536,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
       '<div><div class="note" style="margin-bottom:8px">3. ¿Hasta qué número?</div><div class="seg"><button class="chip" data-act="range" data-v="3" aria-pressed="' + (S.reto.range === 3) + '">1–3 (fácil)</button><button class="chip" data-act="range" data-v="5" aria-pressed="' + (S.reto.range === 5) + '">1–5</button><button class="chip" data-act="range" data-v="10" aria-pressed="' + (S.reto.range === 10) + '">1–10 (crueldad)</button></div></div>' +
       '<div><div class="note" style="margin-bottom:8px">4. Elige tu número en secreto</div>' + numGrid(S.reto.range, 'pick', '', S.reto.pick) + '</div>' +
       '<button class="btn" data-act="send"' + (ready ? '' : ' disabled') + '>Lanzar reto 🚀</button>'
-      : '<div class="empty"><span class="e">🪩</span>Aún estás solo. Invita a tus amigos para poder retarles.</div>') + '</div>';
+      : '<div class="empty"><span class="e">🎉</span>Aún estás solo. Invita a tus amigos para poder retarles.</div>') + '</div>';
     var hist = retos().filter(function (r) { return r.status === 'resolved'; }).slice(0, 12).map(function (r) {
       return '<div class="reto"><div class="h">' + retoLine(r) + '</div><div class="picks"><span class="pk">' + esc(nm(r.from)) + ': ' + r.fromPick + '</span><span class="pk">' + esc(nm(r.to)) + ': ' + r.toPick + '</span></div>' +
         (r.match ? '<div class="verdict lose">¡Coinciden! ' + esc(nm(r.to)) + ' bebe' + (r.paid ? ' ✅' : '') + '</div>' : '<div class="verdict win">No coinciden. ' + esc(nm(r.to)) + ' se libra</div>') + '</div>';
@@ -436,7 +560,14 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
   }
   function render() {
     if (S.view !== 'party' || !S.d) return;
-    var y = window.scrollY; partyView(); window.scrollTo(0, y);
+    if (S.d.finished !== S.lastFinished) {
+      var first = S.lastFinished === null; S.lastFinished = S.d.finished;
+      if (S.d.finished) { S.wrap = { open: true, i: 0, c: -1 }; if (!first) toast('🏁 ¡La fiesta ha terminado! Mira el Wrapped'); }
+      else S.wrap.open = false;
+    }
+    var y = window.scrollY;
+    if (S.d.finished && S.wrap.open) { $app.innerHTML = wrappedView(); window.scrollTo(0, 0); }
+    else { partyView(); window.scrollTo(0, y); }
   }
 
   /* ---------- events ---------- */
@@ -462,6 +593,16 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     else if (a === 'answer') act('answer', { pid: S.prof.pid, id: b.dataset.id, pick: +b.dataset.n });
     else if (a === 'pay') act('pay', { pid: S.prof.pid, id: b.dataset.id }, 'Bebido y apuntado. Salud 🍻');
     else if (a === 'leave') leave();
+    else if (a === 'wnext') { S.wrap.i++; render(); }
+    else if (a === 'wprev') { S.wrap.i = Math.max(0, S.wrap.i - 1); render(); }
+    else if (a === 'wrestart') { S.wrap.i = 0; S.wrap.c = -1; render(); }
+    else if (a === 'wclose') { S.wrap.open = false; render(); }
+    else if (a === 'wopen') { S.wrap = { open: true, i: 0, c: -1 }; render(); }
+    else if (a === 'reopen') act('reopen', { pid: S.prof.pid }, 'Fiesta reabierta');
+    else if (a === 'finish') {
+      if (!S.confirmFinish) { S.confirmFinish = true; render(); clearTimeout(S.cf); S.cf = setTimeout(function () { S.confirmFinish = false; render(); }, 5000); }
+      else { S.confirmFinish = false; act('finish', { pid: S.prof.pid }); }
+    }
     else if (a === 'copy') {
       var ok = function () { toast('Enlace copiado: ' + link()); }, ko = function () { toast('Enlace: ' + link()); };
       try { navigator.clipboard.writeText(link()).then(ok, ko); } catch (x) { ko(); }
