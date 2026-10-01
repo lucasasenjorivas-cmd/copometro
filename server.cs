@@ -102,25 +102,50 @@ public static class Program
         Console.WriteLine("Redis: " + loaded + " fiestas cargadas");
     }
 
+    // Eventos anonimos (solo contadores por dia) y comentarios
+    static readonly string[] EvNames = { "invite", "qr", "copy", "wrapped_view", "story_share", "music_open", "taxi_click", "food_click", "feedback_open", "photo_set" };
+    static Dictionary<string, int> Ev = new Dictionary<string, int>();
+    static bool EvDirty;
+    static string EvFile;
+    static int FbCount; static long FbMinute;
+
+    static void AddEv(string e)
+    {
+        string k = DateTime.UtcNow.ToString("yyyy-MM-dd") + "|" + e;
+        lock (L)
+        {
+            int c; Ev.TryGetValue(k, out c); Ev[k] = c + 1; EvDirty = true;
+            try { File.WriteAllText(EvFile, J.Serialize(Ev)); } catch { }
+        }
+    }
+
     static void Flusher()
     {
         while (true)
         {
             Thread.Sleep(1500);
             List<string> codes = null;
-            lock (L) { if (Dirty.Count > 0) { codes = new List<string>(Dirty); Dirty.Clear(); } }
-            if (codes == null) continue;
+            bool ev = false;
+            string evJson = null;
+            lock (L)
+            {
+                if (Dirty.Count > 0) { codes = new List<string>(Dirty); Dirty.Clear(); }
+                if (EvDirty) { ev = true; EvDirty = false; evJson = J.Serialize(Ev); }
+            }
+            if (codes == null && !ev) continue;
             try
             {
                 List<object> cmds = new List<object>();
                 lock (L)
                 {
-                    foreach (string c in codes)
-                    {
-                        Party p;
-                        if (Parties.TryGetValue(c, out p)) cmds.Add(new object[] { "SET", "copometro:p:" + c, J.Serialize(p), "EX", "2592000" });
-                    }
+                    if (codes != null)
+                        foreach (string c in codes)
+                        {
+                            Party p;
+                            if (Parties.TryGetValue(c, out p)) cmds.Add(new object[] { "SET", "copometro:p:" + c, J.Serialize(p), "EX", "2592000" });
+                        }
                 }
+                if (ev) cmds.Add(new object[] { "SET", "copometro:ev", evJson });
                 if (cmds.Count > 0) Redis("pipeline", J.Serialize(cmds));
                 PersistOk++; PersistErr = "";
             }
@@ -128,9 +153,54 @@ public static class Program
             {
                 PersistErr = ex.Message;
                 Console.WriteLine("Redis ERROR: " + ex.Message);
-                lock (L) { foreach (string c in codes) Dirty.Add(c); }
+                lock (L) { if (codes != null) foreach (string c in codes) Dirty.Add(c); if (ev) EvDirty = true; }
             }
         }
+    }
+
+    static object Stats()
+    {
+        Dictionary<string, object> r = new Dictionary<string, object>();
+        lock (L)
+        {
+            int parties = 0, players = 0, big = 0, finished = 0, retos = 0, photos = 0, withMusic = 0;
+            Dictionary<string, int> hosts = new Dictionary<string, int>();
+            SortedDictionary<string, int> perDay = new SortedDictionary<string, int>();
+            DateTime epoch = new DateTime(1970, 1, 1);
+            foreach (Party p in Parties.Values)
+            {
+                parties++; players += p.players.Count; retos += p.retos.Count;
+                if (p.players.Count >= 4) big++;
+                if (p.finished) finished++;
+                if (!string.IsNullOrEmpty(p.music)) withMusic++;
+                foreach (Player pl in p.players) if (pl.photo != null) photos++;
+                if (!string.IsNullOrEmpty(p.host)) { int c; hosts.TryGetValue(p.host, out c); hosts[p.host] = c + 1; }
+                string day = epoch.AddMilliseconds(p.created).ToString("yyyy-MM-dd");
+                int d; perDay.TryGetValue(day, out d); perDay[day] = d + 1;
+            }
+            int repeat = 0; foreach (int c in hosts.Values) if (c >= 2) repeat++;
+            r["parties"] = parties; r["players"] = players; r["avgPlayers"] = parties == 0 ? 0 : Math.Round((double)players / parties, 2);
+            r["partiesWith4plus"] = big; r["finished"] = finished; r["retos"] = retos; r["photos"] = photos; r["withMusic"] = withMusic;
+            r["organizers"] = hosts.Count; r["repeatOrganizers"] = repeat; r["partiesPerDay"] = perDay;
+            Dictionary<string, int> tot = new Dictionary<string, int>();
+            SortedDictionary<string, Dictionary<string, int>> byDay = new SortedDictionary<string, Dictionary<string, int>>();
+            foreach (KeyValuePair<string, int> kv in Ev)
+            {
+                string[] pp = kv.Key.Split('|'); int t; tot.TryGetValue(pp[1], out t); tot[pp[1]] = t + kv.Value;
+                Dictionary<string, int> dd; if (!byDay.TryGetValue(pp[0], out dd)) { dd = new Dictionary<string, int>(); byDay[pp[0]] = dd; }
+                dd[pp[1]] = kv.Value;
+            }
+            r["events"] = tot; r["eventsPerDay"] = byDay;
+        }
+        return r;
+    }
+
+    static string Origin(string host, string proto)
+    {
+        if (string.IsNullOrEmpty(host)) host = "localhost";
+        proto = (proto ?? "").Split(',')[0].Trim();
+        if (proto == "") proto = (host.StartsWith("localhost") || host.StartsWith("127.") || host.StartsWith("192.168.")) ? "http" : "https";
+        return proto + "://" + host;
     }
 
     public static void Main(string[] args)
@@ -142,6 +212,8 @@ public static class Program
         J.MaxJsonLength = 20 * 1024 * 1024;
         Dir = AppDomain.CurrentDomain.BaseDirectory;
         DataFile = Path.Combine(Dir, "data.json");
+        EvFile = Path.Combine(Dir, "events.json");
+        try { if (File.Exists(EvFile)) Ev = J.Deserialize<Dictionary<string, int>>(File.ReadAllText(EvFile, Encoding.UTF8)); } catch { Ev = new Dictionary<string, int>(); }
         try
         {
             if (File.Exists(DataFile))
@@ -154,7 +226,13 @@ public static class Program
         if (string.IsNullOrEmpty(RUrl) || string.IsNullOrEmpty(RTok)) { RUrl = null; Console.WriteLine("Sin base de datos externa: solo data.json"); }
         else
         {
-            try { LoadFromRedis(); }
+            try
+            {
+                LoadFromRedis();
+                string r3 = Redis("", J.Serialize(new object[] { "GET", "copometro:ev" }));
+                Dictionary<string, object> d3 = (Dictionary<string, object>)J.DeserializeObject(r3);
+                if (d3.ContainsKey("result") && d3["result"] != null) Ev = J.Deserialize<Dictionary<string, int>>(Convert.ToString(d3["result"]));
+            }
             catch (Exception ex) { PersistErr = ex.Message; Console.WriteLine("Redis ERROR al cargar: " + ex.Message); }
             Thread ft = new Thread(Flusher);
             ft.IsBackground = true;
@@ -224,10 +302,13 @@ public static class Program
         string method = rl[0].ToUpperInvariant();
         string target = rl[1];
         int cl = 0;
+        string hostH = "", protoH = "";
         for (int i = 1; i < lines.Length; i++)
         {
             if (lines[i].StartsWith("content-length:", StringComparison.OrdinalIgnoreCase))
                 int.TryParse(lines[i].Substring(15).Trim(), out cl);
+            else if (lines[i].StartsWith("host:", StringComparison.OrdinalIgnoreCase)) hostH = lines[i].Substring(5).Trim();
+            else if (lines[i].StartsWith("x-forwarded-proto:", StringComparison.OrdinalIgnoreCase)) protoH = lines[i].Substring(18).Trim();
         }
         int bodyStart = hend + 4;
         if (cl > 30000) { Write(s, 413, "text/plain", Encoding.UTF8.GetBytes("Demasiado grande")); return; }
@@ -298,9 +379,42 @@ public static class Program
         }
         if (path == "/health") { Write(s, 200, "text/plain", Encoding.UTF8.GetBytes("ok")); return; }
         if (path == "/favicon.ico") { Write(s, 204, "text/plain", new byte[0]); return; }
+        if (path == "/og.jpg")
+        {
+            string og = Path.Combine(Dir, "og.txt");
+            if (File.Exists(og)) { try { Write(s, 200, "image/jpeg", Convert.FromBase64String(File.ReadAllText(og).Trim()), "public, max-age=86400"); return; } catch { } }
+            Write(s, 404, "text/plain", new byte[0]); return;
+        }
+        if (path == "/stats")
+        {
+            string sf = Path.Combine(Dir, "stats.html");
+            if (File.Exists(sf)) Write(s, 200, "text/html; charset=utf-8", File.ReadAllBytes(sf));
+            else Write(s, 404, "text/plain", Encoding.UTF8.GetBytes("Falta stats.html"));
+            return;
+        }
         string file = Path.Combine(Dir, "index.html");
-        if (File.Exists(file)) Write(s, 200, "text/html; charset=utf-8", File.ReadAllBytes(file));
-        else Write(s, 404, "text/plain", Encoding.UTF8.GetBytes("Falta index.html"));
+        if (!File.Exists(file)) { Write(s, 404, "text/plain", Encoding.UTF8.GetBytes("Falta index.html")); return; }
+        string html = File.ReadAllText(file, Encoding.UTF8);
+        string origin = Origin(hostH, protoH);
+        html = html.Replace("__ORIGIN__", origin);
+        Match cm = Regex.Match(path, "^/([A-Za-z]{4})/?$");
+        if (cm.Success)
+        {
+            string code = cm.Groups[1].Value.ToUpperInvariant();
+            lock (L)
+            {
+                Party pt;
+                if (Parties.TryGetValue(code, out pt))
+                {
+                    string n = WebUtility.HtmlEncode(pt.name);
+                    html = html.Replace("<title>Copómetro</title>", "<title>" + n + " · Copómetro</title>")
+                               .Replace("<meta property=\"og:title\" content=\"Copómetro\">", "<meta property=\"og:title\" content=\"Te invitan a «" + n + "»\">")
+                               .Replace("content=\"Cuenta las copas, mira el ranking y lanza retos. ¡Únete a la fiesta!\"", "content=\"Entra con el código " + code + ": cuenta tus copas, lanza retos y consigue el Wrapped de la noche.\"")
+                               .Replace("<meta property=\"og:url\" content=\"" + origin + "/\">", "<meta property=\"og:url\" content=\"" + origin + "/" + code + "\">");
+                }
+            }
+        }
+        Write(s, 200, "text/html; charset=utf-8", Encoding.UTF8.GetBytes(html));
     }
 
     static void Write(NetworkStream s, int status, string type, byte[] body)
@@ -441,6 +555,30 @@ public static class Program
             if (b == null) throw new ApiError(400, "Cuerpo no valido");
         }
 
+        if (seg[0] == "stats" && method == "GET") return Stats();
+        if (seg[0] == "ev" && method == "POST")
+        {
+            string en = Str(b, "e");
+            if (Array.IndexOf(EvNames, en) < 0) throw new ApiError(400, "Evento no valido");
+            AddEv(en);
+            Dictionary<string, object> okv = new Dictionary<string, object>(); okv["ok"] = true; return okv;
+        }
+        if (seg[0] == "feedback" && method == "POST")
+        {
+            string msg = Clean(Str(b, "msg"), 600), contact = Clean(Str(b, "contact"), 80);
+            if (msg.Length < 3) throw new ApiError(400, "Escribe algo para poder leerlo");
+            long minute = Now() / 60000;
+            lock (L) { if (FbMinute != minute) { FbMinute = minute; FbCount = 0; } FbCount++; if (FbCount > 20) throw new ApiError(400, "Demasiados comentarios seguidos, prueba en un minuto"); }
+            string line = DateTime.UtcNow.ToString("u") + " | " + contact + " | " + msg;
+            Console.WriteLine("FEEDBACK: " + line);
+            try { File.AppendAllText(Path.Combine(Dir, "feedback.txt"), line + "\r\n", Encoding.UTF8); } catch { }
+            if (RUrl != null)
+            {
+                string payload = J.Serialize(new object[] { new object[] { "LPUSH", "copometro:feedback", line }, new object[] { "LTRIM", "copometro:feedback", "0", "499" } });
+                ThreadPool.QueueUserWorkItem(delegate (object st) { try { Redis("pipeline", payload); } catch (Exception ex) { Console.WriteLine("Redis feedback ERROR: " + ex.Message); } });
+            }
+            Dictionary<string, object> okf = new Dictionary<string, object>(); okf["ok"] = true; return okf;
+        }
         if (seg[0] == "status")
         {
             Dictionary<string, object> st = new Dictionary<string, object>();
