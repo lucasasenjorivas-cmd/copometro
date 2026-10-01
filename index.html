@@ -181,6 +181,17 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
 #off { position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--red); color: #fff; font-weight: 800; font-size: 13px; padding: 6px 14px; border-radius: 999px; z-index: 19; }
 #fx { position: fixed; inset: 0; pointer-events: none; z-index: 15; width: 100%; height: 100%; }
 .boot { text-align: center; color: var(--muted); padding: 30px; }
+.pp { background: var(--bg); border-radius: 18px; padding: 12px; display: grid; grid-template-columns: 52px 1fr; gap: 12px; align-items: start; border: 2px solid rgba(255,255,255,.06); }
+.pp.me { border-color: var(--lime); }
+.pp .av { font-size: 38px; text-align: center; line-height: 1.1; }
+.pp .mid { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pp .nm { font-weight: 800; overflow-wrap: anywhere; }
+.pp .lb { font-size: 12px; color: var(--gold); font-weight: 500; }
+.pp .brk { font-size: 13px; color: var(--muted); }
+.pp .tg { font-size: 11px; background: var(--lime); color: #1c2600; border-radius: 6px; padding: 1px 6px; margin-left: 6px; font-weight: 800; vertical-align: 2px; }
+.pp .tg.host { background: var(--gold); }
+.drink .bar, .mine .bar { height: 8px; border-radius: 8px; background: rgba(255,255,255,.08); overflow: hidden; width: 100%; }
+.mine .bar i { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--cyan), var(--pink)); transition: width .6s; }
 .avi img { width: 1.15em; height: 1.15em; border-radius: 50%; object-fit: cover; vertical-align: -.2em; border: 2px solid rgba(255,255,255,.5); }
 .ph-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .ph-prev { font-size: 56px; line-height: 1; width: 72px; height: 72px; display: grid; place-items: center; background: var(--bg); border-radius: 50%; overflow: hidden; }
@@ -237,7 +248,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
   var S = {
     prof: { pid: '', name: '', emoji: '🕺', ig: '' },
     code: '', d: null, tab: 'beber', view: 'boot', inviteCode: '', inviteName: '',
-    reto: { to: '', kind: 'chupito', range: 5, pick: 0 },
+    reto: { to: '', kind: 'chupito', range: 10, pick: 0 },
     err: '', inflight: 0, seen: null, timer: null, fails: 0, last: '',
     wrap: { open: false, i: 0, c: -1 }, confirmFinish: false, lastFinished: null
   };
@@ -258,12 +269,12 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
   function avi(p) {
     if (!p) return '👤';
     if (p.ph > 0) return '<span class="avi"><img src="/photo/' + esc(S.code) + '/' + esc(p.id) + '?v=' + p.ph + '" alt=""></span>';
-    return avi(p);
+    return esc(p.emoji);
   }
   function em(id) { return avi(P(id)); }
 
   var PARTNERS = {
-    ride: [{ n: '🚕 Uber', u: 'https://m.uber.com/' }, { n: '🚕 Cabify', u: 'https://cabify.com/es' }, { n: '🚕 Bolt', u: 'https://bolt.eu/es-es/' }],
+    ride: [{ n: '🚕 Uber', u: 'https://m.uber.com/ul/?action=setPickup&pickup=my_location' }, { n: '🚕 Cabify', u: 'https://cabify.com/es' }, { n: '🚕 Bolt', u: 'https://bolt.eu/es-es/' }],
     food: [{ n: '🍕 Glovo', u: 'https://glovoapp.com/es/es/' }, { n: '🍔 Uber Eats', u: 'https://www.ubereats.com/es' }]
   };
   function partnerLinks(list) { return list.map(function (p) { return '<a class="ghost pl" href="' + p.u + '" target="_blank" rel="noopener sponsored">' + p.n + '</a>'; }).join(''); }
@@ -403,7 +414,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
 
   /* ---------- session ---------- */
   function startParty(view) {
-    S.code = view.code; S.d = view; S.seen = null; S.tab = 'beber'; S.lastFinished = null; S.wrap = { open: false, i: 0, c: -1 }; S.reto = { to: '', kind: 'chupito', range: 5, pick: 0 }; S.view = 'party';
+    S.code = view.code; S.d = view; S.seen = null; S.tab = 'beber'; S.lastFinished = null; S.wrap = { open: false, i: 0, c: -1 }; S.reto = { to: '', kind: 'chupito', range: 10, pick: 0 }; S.view = 'party';
     save({ last: { code: view.code, name: view.name } });
     try { history.replaceState(null, '', '/' + view.code); } catch (e) {}
     seenUpdate(view, true); render(); poll();
@@ -481,9 +492,14 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
   }
 
   /* ---------- party views ---------- */
+  /* El medidor se mueve por puntos: agua baja, cerveza/vino suben, copa/chupito suben un poco mas, vomito sube mas */
+  var W = { cana: 1, vino: 1, copa: 1.5, chupito: 1.5, vomito: 2.5, agua: -0.5 }, GAUGE_MAX = 20;
+  function pts(d) { var t = 0; for (var k in W) t += ((d && d[k]) || 0) * W[k]; return Math.max(0, t); }
+  var GL = [[0, 'Sobrios (sospechosamente)'], [0.06, 'Calentando motores'], [0.2, 'Ya se ríen de todo'], [0.35, 'Bailan sin música'], [0.55, 'Le escriben a su ex'], [0.8, 'Código rojo: agua y taxi']];
+  function gaugeLabel(l) { var s = GL[0][1]; GL.forEach(function (x) { if (l >= x[0]) s = x[1]; }); return s; }
   function gauge() {
-    var n = players().length || 1, sum = 0; players().forEach(function (p) { sum += total(p.drinks); });
-    var avg = sum / n, lvl = Math.min(avg / 8, 1), ang = -90 + lvl * 180;
+    var n = players().length || 1, sum = 0, cnt = 0; players().forEach(function (p) { sum += pts(p.drinks); cnt += total(p.drinks); });
+    var avg = sum / n, lvl = Math.min(avg / GAUGE_MAX, 1), ang = -90 + lvl * 180;
     function arc(a0, a1, col) {
       var r = 120, cx = 150, cy = 150, f = function (a) { var t = (a - 180) * Math.PI / 180; return [cx + r * Math.cos(t), cy + r * Math.sin(t)]; };
       var p0 = f(a0), p1 = f(a1);
@@ -493,7 +509,8 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     return '<div class="card gauge"><svg viewBox="0 0 300 175" role="img" aria-label="Nivel de la fiesta">' + zones +
       '<g class="needle" style="transform:rotate(' + ang.toFixed(1) + 'deg)"><path d="M150 150 L146 60 L150 40 L154 60 Z" fill="#fff6ff"/></g><circle cx="150" cy="150" r="10" fill="#fff6ff"/>' +
       '<text x="22" y="172" fill="#b9a2e6" font-size="12" font-family="Rubik,sans-serif" font-weight="700">SOBRIOS</text><text x="278" y="172" fill="#b9a2e6" font-size="12" text-anchor="end" font-family="Rubik,sans-serif" font-weight="700">A TOPE</text></svg>' +
-      '<div class="lvl">' + esc(levelOf(Math.round(avg))) + '</div><div class="note">' + sum + ' tragos entre ' + n + ' ' + (n === 1 ? 'persona' : 'personas') + '</div></div>';
+      '<div class="lvl">' + esc(gaugeLabel(lvl)) + '</div><div class="note">' + cnt + ' tragos entre ' + n + ' ' + (n === 1 ? 'persona' : 'personas') + '</div>' +
+      '<div class="note">Cómo se mueve: 💧 baja · 🍺🍷 suben · 🍹🥃 suben algo más · 🤮 sube más</div></div>';
   }
   function beberView() {
     var m = me(), d = (m && m.drinks) || {}, t = total(d), fin = S.d.finished ? ' disabled' : '';
@@ -501,10 +518,12 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
       return '<div class="drink ' + (cls || '') + '"><div class="e">' + k.e + '</div><div class="n">' + k.n + '</div><div class="c">' + (d[k.k] || 0) + '</div>' +
         '<div class="acts"><button class="plus" data-act="add" data-k="' + k.k + '"' + fin + ' aria-label="Sumar ' + k.n + '">+1</button><button class="minus" data-act="sub" data-k="' + k.k + '"' + fin + ' aria-label="Restar ' + k.n + '">−</button></div></div>';
     };
+    var order = ['cana', 'vino', 'copa', 'chupito', 'agua', 'vomito'].map(function (k) { return KINDS.filter(function (x) { return x.k === k; })[0]; });
+    var mine = Math.min(pts(d) / GAUGE_MAX, 1);
     return gauge() + safetyBanner() +
       (S.d.finished ? '<div class="card"><h2>🏁 Fiesta terminada</h2><button class="btn" data-act="wopen">🎬 Ver el Wrapped</button></div>' : '') +
-      '<div class="card mine"><h2>Tus tragos</h2><div class="big">' + t + '</div><div class="note">' + esc(levelOf(t)) + '</div><div class="drinks">' + ALC.map(function (k) { return card(k); }).join('') + '</div></div>' +
-      '<div class="card mine"><h2>Modo supervivencia</h2><div class="note">No cuentan como tragos, pero salen en el Wrapped. Se apunta, no se juzga.</div><div class="drinks">' + EXTRA.map(function (k) { return card(k, 'extra'); }).join('') + '</div></div>' +
+      (players().length < 2 && !S.d.finished ? '<div class="card"><h2>Estás solo</h2><div class="note">Invita a tus amigos desde la pestaña Fiesta.</div><button class="btn li" data-act="tab" data-v="fiesta">🎉 Ir a Fiesta</button></div>' : '') +
+      '<div class="card mine"><h2>Tus bebidas</h2><div class="big">' + t + '</div><div class="note">' + esc(levelOf(t)) + '</div><div class="bar"><i style="width:' + Math.round(mine * 100) + '%"></i></div><div class="note">Tu nivel de desmadre. El agua y el vómito no cuentan como tragos pero mueven el medidor.</div><div class="drinks">' + order.map(function (k) { return card(k, EXTRA.indexOf(k) >= 0 ? 'extra' : ''); }).join('') + '</div></div>' +
       '<div class="card"><h2>Vuelve seguro y cena algo</h2><div class="note">Enlaces a servicios externos. Si has bebido, no conduzcas.</div><div class="seg">' + partnerLinks(PARTNERS.ride) + '</div><div class="seg">' + partnerLinks(PARTNERS.food) + '</div><a class="ghost pl" href="tel:112">🆘 Emergencias 112</a></div>';
   }
   function safetyBanner() {
@@ -716,27 +735,48 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     var form = '<div class="card"><h2>🎲 Lanza un reto</h2>' + (others.length ?
       '<div><div class="note" style="margin-bottom:8px">1. ¿A quién?</div><div class="who">' + who + '</div></div>' +
       '<div><div class="note" style="margin-bottom:8px">2. ¿Qué se juega?</div><div class="seg"><button class="chip" data-act="kind" data-v="trago" aria-pressed="' + (S.reto.kind === 'trago') + '">🍹 Un trago</button><button class="chip" data-act="kind" data-v="chupito" aria-pressed="' + (S.reto.kind === 'chupito') + '">🥃 Un chupito</button></div></div>' +
-      '<div><div class="note" style="margin-bottom:8px">3. ¿Hasta qué número?</div><div class="seg"><button class="chip" data-act="range" data-v="3" aria-pressed="' + (S.reto.range === 3) + '">1–3 (fácil)</button><button class="chip" data-act="range" data-v="5" aria-pressed="' + (S.reto.range === 5) + '">1–5</button><button class="chip" data-act="range" data-v="10" aria-pressed="' + (S.reto.range === 10) + '">1–10 (crueldad)</button></div></div>' +
-      '<div><div class="note" style="margin-bottom:8px">4. Elige tu número en secreto</div>' + numGrid(S.reto.range, 'pick', '', S.reto.pick) + '</div>' +
+      '<div><div class="note" style="margin-bottom:8px">3. Elige tu número del 1 al 10, en secreto</div>' + numGrid(10, 'pick', '', S.reto.pick) + '</div>' +
       '<button class="btn" data-act="send"' + (ready ? '' : ' disabled') + '>Lanzar reto 🚀</button>'
-      : '<div class="empty"><span class="e">🎉</span>Aún estás solo. Invita a tus amigos para poder retarles.</div>') + '</div>';
+      : '<div class="empty"><span class="e">🎉</span>Aún estás solo. Invita a tus amigos desde la pestaña Fiesta para poder retarles.</div>') + '</div>';
     var hist = retos().filter(function (r) { return r.status === 'resolved'; }).slice(0, 12).map(function (r) {
       return '<div class="reto"><div class="h">' + retoLine(r) + '</div><div class="picks"><span class="pk">' + esc(nm(r.from)) + ': ' + r.fromPick + '</span><span class="pk">' + esc(nm(r.to)) + ': ' + r.toPick + '</span></div>' +
         (r.match ? '<div class="verdict lose">¡Coinciden! ' + esc(nm(r.to)) + ' bebe' + (r.paid ? ' ✅' : '') + '</div>' : '<div class="verdict win">No coinciden. ' + esc(nm(r.to)) + ' se libra</div>') + '</div>';
     }).join('');
     return (out ? '<div class="card"><h2>⚡ Ahora mismo</h2>' + out + '</div>' : '') + form + '<div class="card"><h2>📜 Historial</h2>' + (hist || '<div class="empty"><span class="e">🎲</span>Todavía no hay retos resueltos.</div>') + '</div>';
   }
-  function shareCard() {
-    var msg = '🪩 Entra a mi fiesta "' + S.d.name + '" en Copómetro y a ver quién aguanta más: ' + link();
-    return '<div class="card share"><a class="btn wa" href="https://wa.me/?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener">💬 Invitar por WhatsApp</a><button class="ghost" data-act="qr">📱 Enseñar QR</button><button class="ghost" data-act="copy">📋 Copiar enlace</button></div>';
+  function inviteText() { return '🎉 Entra a mi fiesta «' + S.d.name + '» en Copómetro (código ' + S.code + ') y a ver quién aguanta más: ' + link(); }
+  function invite() {
+    var text = inviteText(), fallback = function () { window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank'); };
+    if (navigator.share) navigator.share({ title: 'Copómetro', text: text }).catch(function (e) { if (!e || e.name !== 'AbortError') fallback(); });
+    else fallback();
+  }
+  function fiestaView() {
+    var ps = players().slice().sort(function (a, b) { return a.joined - b.joined; }), hostId = S.d.host;
+    var head = '<div class="card"><h2>🎉 ' + esc(S.d.name) + '</h2><div class="row"><span class="codepill">' + esc(S.code) + '</span><span class="note">' + ps.length + (ps.length === 1 ? ' persona' : ' personas') + ' en la fiesta</span></div>' +
+      '<div class="note" style="overflow-wrap:anywhere">' + esc(link()) + '</div>' +
+      '<button class="btn wa" data-act="invite">📤 Invitar: elige el chat</button>' +
+      '<div class="seg"><button class="ghost" data-act="qr">📱 Enseñar QR</button><button class="ghost" data-act="copy">📋 Copiar enlace</button></div></div>';
+    var music = '<div class="card"><h2>🎵 Música de la fiesta</h2>' +
+      (S.d.music ? '<a class="btn cy" href="' + esc(S.d.music) + '" target="_blank" rel="noopener">🎧 Abrir la música</a>' : '<div class="note">Todavía no hay música compartida.</div>') +
+      '<div class="note">Crea un Jam en Spotify (Reproduciendo → Jam) o una lista colaborativa, copia el enlace y pégalo aquí. Todos lo verán en esta pestaña.</div>' +
+      '<label class="f" for="in-music">Enlace de Spotify, YouTube, Apple Music…<input id="in-music" type="text" placeholder="https://open.spotify.com/…" autocomplete="off" autocapitalize="none"></label>' +
+      '<div class="seg"><button class="ghost" data-act="savemusic">Guardar enlace</button>' + (S.d.music ? '<button class="ghost" data-act="clearmusic">Quitar</button>' : '') + '</div></div>';
+    var rows = ps.map(function (p) {
+      var t = total(p.drinks), brk = KINDS.filter(function (k) { return p.drinks[k.k]; }).map(function (k) { return k.e + p.drinks[k.k]; }).join(' ');
+      var ig = p.ig ? '<a class="ig" href="https://www.instagram.com/' + encodeURIComponent(p.ig) + '/" target="_blank" rel="noopener noreferrer">📸 @' + esc(p.ig) + '</a>' : '';
+      var hora = p.joined ? new Date(p.joined).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
+      return '<div class="pp' + (p.id === S.prof.pid ? ' me' : '') + '"><div class="av">' + avi(p) + '</div><div class="mid"><div class="nm">' + esc(p.name) + (p.id === S.prof.pid ? '<span class="tg">TÚ</span>' : '') + (p.id === hostId ? '<span class="tg host">👑 ANFITRIÓN</span>' : '') + '</div>' +
+        '<div class="lb">' + esc(levelOf(t)) + ' · ' + t + (t === 1 ? ' trago' : ' tragos') + '</div><div class="brk">' + (brk || 'Aún nada') + '</div><div class="brk">Entró a las ' + hora + '</div>' + ig + '</div></div>';
+    }).join('');
+    return head + music + '<div class="card"><h2>👥 Quién está</h2><div class="rows">' + rows + '</div></div>' +
+      '<div class="card"><div class="seg"><button class="ghost" data-act="edit">✏️ Mis datos y foto</button><button class="ghost" data-act="leave">Salir de la fiesta</button></div></div>';
   }
   function partyView() {
     var pend = retos().filter(function (r) { return r.to === S.prof.pid && (r.status === 'pending' || (r.status === 'resolved' && r.match && !r.paid)); }).length;
-    var body = S.tab === 'rank' ? rankView() : S.tab === 'retos' ? retosView() : beberView();
-    var tabs = [['beber', '🍹', 'Beber'], ['rank', '🏆', 'Ranking'], ['retos', '🎲', 'Retos']];
+    var body = S.tab === 'rank' ? rankView() : S.tab === 'retos' ? retosView() : S.tab === 'fiesta' ? fiestaView() : beberView();
+    var tabs = [['beber', '🍹', 'Beber'], ['rank', '🏆', 'Ranking'], ['retos', '🎲', 'Retos'], ['fiesta', '🎉', 'Fiesta']];
     $app.innerHTML =
-      '<div class="top"><h2>' + esc(S.d.name) + '</h2><div class="row"><span class="codepill">' + esc(S.code) + '</span><span class="note">' + players().length + ' en la fiesta</span><button class="ghost" data-act="edit">✏️ Yo</button><button class="ghost" data-act="leave">Salir</button></div></div>' +
-      (S.tab === 'beber' || players().length < 2 ? shareCard() : '') + body +
+      body +
       '<div class="note center">Solo mayores de 18. Bebe con cabeza. <a href="#" data-act="privacy">Privacidad</a></div>' +
       '<nav><div class="in" role="tablist">' + tabs.map(function (t) {
         return '<button role="tab" data-act="tab" data-v="' + t[0] + '" aria-selected="' + (S.tab === t[0]) + '"><span class="i">' + t[1] + '</span>' + t[2] + (t[0] === 'retos' && pend ? '<span class="badge">' + pend + '</span>' : '') + '</button>';
@@ -760,6 +800,9 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     var a = b.dataset.act, v = b.dataset.v;
     if (b.tagName === 'A' && b.getAttribute('href') === '#') e.preventDefault();
     if (a === 'privacy') privacyModal();
+    else if (a === 'invite') invite();
+    else if (a === 'savemusic') { var mi = document.getElementById('in-music'); if (!mi || !mi.value.trim()) return toast('Pega primero un enlace'); act('music', { pid: S.prof.pid, url: mi.value.trim() }, '🎵 Música guardada'); }
+    else if (a === 'clearmusic') act('music', { pid: S.prof.pid, url: '' }, 'Música quitada');
     else if (a === 'qr') qrModal();
     else if (a === 'rmphoto') { S.prof.photo = ''; S.prof.removePhoto = true; save({ prof: S.prof }); refreshPhoto(); }
     else if (a === 'wstory') { var slw = wrappedSlides(); shareStory(slw[Math.min(S.wrap.i, slw.length - 1)]); }
