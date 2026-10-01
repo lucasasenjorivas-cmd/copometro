@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Copómetro · Números</title>
+<style>
+:root { --bg:#12002b; --card:#2a0d55; --fg:#fff6ff; --muted:#b9a2e6; --pink:#ff2e97; --cyan:#19e3ff; --lime:#c8ff2e; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif; padding: 20px 16px 60px; }
+main { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+h1 { margin: 0; font-size: 26px; } h2 { margin: 0 0 10px; font-size: 16px; color: var(--cyan); }
+.card { background: var(--card); border-radius: 18px; padding: 16px; border: 1px solid rgba(255,255,255,.1); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.k { background: rgba(0,0,0,.25); border-radius: 14px; padding: 12px; }
+.k b { display: block; font-size: 28px; color: var(--lime); font-variant-numeric: tabular-nums; }
+.k span { font-size: 12px; color: var(--muted); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; } td, th { padding: 6px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.08); } th { color: var(--muted); font-weight: 600; }
+td.n { text-align: right; font-variant-numeric: tabular-nums; } .wrap { overflow-x: auto; }
+.note { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Copómetro · Números</h1>
+  <div class="note">Solo contadores agregados y anónimos. Se actualiza al abrir la página.</div>
+  <div class="card"><h2>Resumen</h2><div class="grid" id="kpis">Cargando…</div></div>
+  <div class="card"><h2>Lo que mide si funciona</h2><div class="grid" id="ratios"></div></div>
+  <div class="card"><h2>Fiestas creadas por día</h2><div class="wrap"><table id="days"></table></div></div>
+  <div class="card"><h2>Acciones de los usuarios</h2><div class="wrap"><table id="ev"></table></div></div>
+</main>
+<script>
+function pct(a, b) { return b ? Math.round(a / b * 100) + ' %' : '—'; }
+function kpi(label, val) { return '<div class="k"><b>' + val + '</b><span>' + label + '</span></div>'; }
+fetch('/api/stats').then(function (r) { return r.json(); }).then(function (s) {
+  document.getElementById('kpis').innerHTML = kpi('fiestas', s.parties) + kpi('personas en total', s.players) + kpi('personas por fiesta', s.avgPlayers) + kpi('organizadores', s.organizers) + kpi('retos lanzados', s.retos) + kpi('con foto', s.photos);
+  document.getElementById('ratios').innerHTML =
+    kpi('fiestas con 4 o más personas', pct(s.partiesWith4plus, s.parties)) +
+    kpi('fiestas terminadas con Wrapped', pct(s.finished, s.parties)) +
+    kpi('organizadores que repiten', pct(s.repeatOrganizers, s.organizers)) +
+    kpi('fiestas con música', pct(s.withMusic, s.parties));
+  var d = Object.keys(s.partiesPerDay || {}).slice(-14).reverse();
+  document.getElementById('days').innerHTML = '<tr><th>Día</th><th class="n">Fiestas</th></tr>' + (d.map(function (k) { return '<tr><td>' + k + '</td><td class="n">' + s.partiesPerDay[k] + '</td></tr>'; }).join('') || '<tr><td colspan="2">Todavía no hay datos</td></tr>');
+  var names = { invite: 'Pulsó invitar', qr: 'Enseñó el QR', copy: 'Copió el enlace', wrapped_view: 'Vio el Wrapped', story_share: 'Compartió una historia', music_open: 'Abrió la música', taxi_click: 'Pulsó un taxi', food_click: 'Pulsó comida', feedback_open: 'Abrió comentarios', photo_set: 'Puso foto' };
+  var e = Object.keys(s.events || {});
+  document.getElementById('ev').innerHTML = '<tr><th>Acción</th><th class="n">Veces</th></tr>' + (e.map(function (k) { return '<tr><td>' + (names[k] || k) + '</td><td class="n">' + s.events[k] + '</td></tr>'; }).join('') || '<tr><td colspan="2">Todavía no hay datos</td></tr>');
+}).catch(function () { document.getElementById('kpis').textContent = 'No se pudieron cargar los datos.'; });
+</script>
+</body>
+</html>
