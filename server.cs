@@ -27,7 +27,7 @@ public class Reto
 
 public class Party
 {
-    public string code, name, host;
+    public string code, name, host, music;
     public long created, finishedAt;
     public bool finished;
     public int v;
@@ -426,7 +426,7 @@ public static class Program
             ps.Add(d);
         }
         v["code"] = p.code; v["name"] = p.name; v["v"] = p.v; v["players"] = ps; v["retos"] = rs;
-        v["finished"] = p.finished; v["finishedAt"] = p.finishedAt; v["created"] = p.created; v["host"] = p.host ?? "";
+        v["finished"] = p.finished; v["finishedAt"] = p.finishedAt; v["created"] = p.created; v["host"] = p.host ?? ""; v["music"] = p.music ?? "";
         return v;
     }
     static void Bump(Party p) { p.v++; Dirty.Add(p.code); Save(); }
@@ -490,6 +490,21 @@ public static class Program
                     Player me = Find(p, pid);
                     if (me == null) throw new ApiError(400, "Primero tienes que unirte a la fiesta");
 
+                    if (act == "music")
+                    {
+                        string url = Str(b, "url").Trim();
+                        if (url != "")
+                        {
+                            Uri uu;
+                            if (url.Length > 300 || !Uri.TryCreate(url, UriKind.Absolute, out uu) || uu.Scheme != "https") throw new ApiError(400, "El enlace tiene que empezar por https://");
+                            string h = uu.Host.ToLowerInvariant();
+                            string[] ok = { "open.spotify.com", "spotify.link", "spotify.app.link", "music.youtube.com", "www.youtube.com", "youtube.com", "youtu.be", "music.apple.com", "soundcloud.com", "on.soundcloud.com", "www.deezer.com", "deezer.com", "link.deezer.com", "tidal.com", "listen.tidal.com" };
+                            if (Array.IndexOf(ok, h) < 0) throw new ApiError(400, "Pon un enlace de Spotify, YouTube, Apple Music, SoundCloud, Deezer o Tidal");
+                        }
+                        p.music = url == "" ? null : url;
+                        Bump(p);
+                        return View(p, pid);
+                    }
                     if (act == "finish" || act == "reopen")
                     {
                         if (!string.IsNullOrEmpty(p.host) && p.host != pid) throw new ApiError(400, "Solo quien creo la fiesta puede hacerlo");
