@@ -8,6 +8,13 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta property="og:title" content="Copómetro">
 <meta property="og:description" content="Cuenta las copas, mira el ranking y lanza retos. ¡Únete a la fiesta!">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Copómetro">
+<meta property="og:image" content="__ORIGIN__/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="__ORIGIN__/">
+<meta name="twitter:card" content="summary_large_image">
 <title>Copómetro</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🪩%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -192,6 +199,10 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
 .pp .tg.host { background: var(--gold); }
 .drink .bar, .mine .bar { height: 8px; border-radius: 8px; background: rgba(255,255,255,.08); overflow: hidden; width: 100%; }
 .mine .bar i { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--cyan), var(--pink)); transition: width .6s; }
+ol.how { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-weight: 500; }
+textarea { font: inherit; font-size: 16px; color: var(--fg); background: var(--bg); border: 2px solid rgba(255,255,255,.14); border-radius: 14px; padding: 12px 14px; width: 100%; min-width: 0; resize: vertical; text-transform: none; letter-spacing: 0; font-weight: 500; }
+textarea:focus { border-color: var(--cyan); outline: none; }
+.mcard label.f { text-align: left; }
 .avi img { width: 1.15em; height: 1.15em; border-radius: 50%; object-fit: cover; vertical-align: -.2em; border: 2px solid rgba(255,255,255,.5); }
 .ph-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .ph-prev { font-size: 56px; line-height: 1; width: 72px; height: 72px; display: grid; place-items: center; background: var(--bg); border-radius: 50%; overflow: hidden; }
@@ -282,15 +293,35 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
   var $modal = document.getElementById('modal');
   function showModal(html) { $modal.innerHTML = '<div class="mback" data-act="mclose"></div><div class="mcard" role="dialog" aria-modal="true">' + html + '<button class="btn" data-act="mclose">Cerrar</button></div>'; $modal.hidden = false; }
   function closeModal() { $modal.hidden = true; $modal.innerHTML = ''; }
-  $modal.addEventListener('click', function (e) { var b = e.target.closest('[data-act]'); if (b && b.dataset.act === 'mclose') closeModal(); });
+  $modal.addEventListener('click', function (e) { var b = e.target.closest('[data-act]'); if (!b) return; if (b.dataset.act === 'mclose') closeModal(); else if (b.dataset.act === 'sendfb') sendFeedback(); });
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[href]'); if (!a) return; var h = a.getAttribute('href') || '';
+    if (a.classList.contains('pl')) { if (/glovo|ubereats/.test(h)) ev('food_click'); else if (/uber\.com|cabify|bolt/.test(h)) ev('taxi_click'); }
+    else if (/spotify|youtu|apple\.com|soundcloud|deezer|tidal/.test(h) && a.classList.contains('btn')) ev('music_open');
+  });
   function privacyModal() {
-    showModal('<h2>Privacidad</h2>' +
-      '<p>Copómetro guarda solo lo que tú escribes: tu nombre, tu cara (emoji o foto), tu Instagram si lo pones y los tragos que apuntas.</p>' +
-      '<p>Se usa únicamente para enseñar la fiesta a quienes están dentro, y se borra solo a los 30 días sin actividad. No vendemos tus datos.</p>' +
-      '<p>Solo para mayores de 18 años. Puedes quitar tu foto o tu Instagram en cualquier momento desde «✏️ Yo».</p>' +
-      '<p>Los enlaces de taxi y comida llevan a servicios externos con sus propias condiciones.</p>');
+    showModal('<h2>Privacidad y condiciones</h2>' +
+      '<p><b>Qué guardamos.</b> Solo lo que tú escribes: tu nombre, tu cara (emoji o foto), tu Instagram si lo pones y las bebidas que apuntas. No pedimos correo ni contraseña.</p>' +
+      '<p><b>Para qué.</b> Para enseñar la fiesta a quienes están dentro y generar el Wrapped. Se borra solo a los 30 días sin actividad. No vendemos tus datos. Medimos el uso con contadores anónimos.</p>' +
+      '<p><b>Tus derechos.</b> Puedes quitar tu foto o tu Instagram cuando quieras desde «Mis datos y foto». Si quieres que borremos algo antes, usa «Dar opinión» y dinos el código de tu fiesta.</p>' +
+      '<p><b>Condiciones.</b> Solo para mayores de 18 años. Copómetro es un juego social, no pide ni premia beber más: usa tu criterio, bebe agua y no conduzcas si has bebido. Eres responsable de lo que subes y de respetar a los demás. Los enlaces de taxi y comida llevan a servicios externos con sus propias condiciones.</p>');
+  }
+  function ev(n) { try { fetch('/api/ev', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ e: n }), keepalive: true }); } catch (e) {} }
+  function feedbackModal() {
+    ev('feedback_open');
+    showModal('<h2>Tu opinión</h2><p>Cuéntanos qué falla o qué echas en falta. Lo leemos todo.</p>' +
+      '<label class="f" style="width:100%" for="fb-msg">Mensaje<textarea id="fb-msg" rows="4" maxlength="600" placeholder="Ej: me gustaría que…"></textarea></label>' +
+      '<label class="f" style="width:100%" for="fb-contact">Contacto (opcional)<input id="fb-contact" type="text" maxlength="80" placeholder="Correo o @instagram si quieres respuesta" autocomplete="off"></label>' +
+      '<button class="btn li" data-act="sendfb">Enviar</button>');
+  }
+  async function sendFeedback() {
+    var m = document.getElementById('fb-msg'), c = document.getElementById('fb-contact');
+    if (!m || m.value.trim().length < 3) return toast('Escribe algo primero');
+    try { await api('feedback', { msg: m.value.trim(), contact: c ? c.value.trim() : '' }); closeModal(); toast('¡Gracias! Lo hemos recibido 🙌'); }
+    catch (e) { toast(e.message || 'No se pudo enviar'); }
   }
   function qrModal() {
+    ev('qr');
     var img;
     try { var q = qrcode(0, 'M'); q.addData(link()); q.make(); img = '<img class="qrimg" alt="Código QR para entrar a la fiesta" src="' + q.createDataURL(8, 4) + '">'; }
     catch (e) { img = '<div class="note">No se pudo generar el QR. Comparte este enlace.</div>'; }
@@ -307,7 +338,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
       var q = .7, d = c.toDataURL('image/jpeg', q);
       while (d.length > 22000 && q > .3) { q -= .1; d = c.toDataURL('image/jpeg', q); }
       URL.revokeObjectURL(url);
-      S.prof.photo = d; S.prof.removePhoto = false; save({ prof: S.prof }); refreshPhoto();
+      S.prof.photo = d; S.prof.removePhoto = false; save({ prof: S.prof }); refreshPhoto(); ev('photo_set');
     };
     img.onerror = function () { toast('No se pudo leer esa foto'); };
     img.src = url;
@@ -374,12 +405,13 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     S.view = 'home';
     var resume = S.last ? '<div class="card"><div class="note">Tu última fiesta</div><h2>' + esc(S.last.name) + '</h2><button class="btn li" data-act="resume">Volver a la fiesta ' + esc(S.last.code) + '</button></div>' : '';
     $app.innerHTML = logo() + resume +
+      '<div class="card"><h2>Cómo funciona</h2><ol class="how"><li>Crea la fiesta y pasa el enlace por WhatsApp.</li><li>Cada uno apunta lo que bebe y se mueve el medidor.</li><li>Lanza retos del 1 al 10 y, al terminar, sale el Wrapped para compartir en historias.</li></ol><div class="note">Gratis, sin registro y solo para mayores de 18.</div></div>' +
       '<div class="card"><h2>Monta una fiesta</h2>' + profFields(S.prof.name) +
       '<label class="f" for="in-party">Nombre de la fiesta<input id="in-party" type="text" maxlength="28" placeholder="Ej: Previa en casa de Marta" autocomplete="off"></label>' +
       '<button class="btn" data-act="create">🎉 Crear fiesta</button></div>' +
       '<div class="card"><h2>¿Te han pasado un código?</h2><label class="f" for="in-code">Código de la fiesta<input id="in-code" class="code" type="text" maxlength="4" placeholder="ABCD" autocapitalize="characters" autocomplete="off"></label>' +
       '<button class="btn cy" data-act="joincode">🚪 Entrar</button></div>' +
-      '<div class="err" id="err">' + esc(S.err) + '</div><div class="note" style="text-align:center">Bebe con cabeza. Si has bebido, no conduzcas. 🚕</div>';
+      '<div class="err" id="err">' + esc(S.err) + '</div><div class="note center">Bebe con cabeza. Si has bebido, no conduzcas. 🚕<br><a href="#" data-act="privacy">Privacidad y condiciones</a> · <a href="#" data-act="feedback">Dar opinión</a></div>';
   }
   function inviteView() {
     S.view = 'invite';
@@ -653,6 +685,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     return c;
   }
   async function shareStory(s) {
+    ev('story_share');
     toast('Preparando la imagen…');
     var c = await makeStory(s);
     c.toBlob(async function (blob) {
@@ -746,6 +779,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
   }
   function inviteText() { return '🎉 Entra a mi fiesta «' + S.d.name + '» en Copómetro (código ' + S.code + ') y a ver quién aguanta más: ' + link(); }
   function invite() {
+    ev('invite');
     var text = inviteText(), fallback = function () { window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank'); };
     if (navigator.share) navigator.share({ title: 'Copómetro', text: text }).catch(function (e) { if (!e || e.name !== 'AbortError') fallback(); });
     else fallback();
@@ -777,7 +811,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     var tabs = [['beber', '🍹', 'Beber'], ['rank', '🏆', 'Ranking'], ['retos', '🎲', 'Retos'], ['fiesta', '🎉', 'Fiesta']];
     $app.innerHTML =
       body +
-      '<div class="note center">Solo mayores de 18. Bebe con cabeza. <a href="#" data-act="privacy">Privacidad</a></div>' +
+      '<div class="note center">Solo mayores de 18. Bebe con cabeza. <a href="#" data-act="privacy">Privacidad y condiciones</a> · <a href="#" data-act="feedback">Dar opinión</a></div>' +
       '<nav><div class="in" role="tablist">' + tabs.map(function (t) {
         return '<button role="tab" data-act="tab" data-v="' + t[0] + '" aria-selected="' + (S.tab === t[0]) + '"><span class="i">' + t[1] + '</span>' + t[2] + (t[0] === 'retos' && pend ? '<span class="badge">' + pend + '</span>' : '') + '</button>';
       }).join('') + '</div></nav>';
@@ -790,7 +824,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
       else S.wrap.open = false;
     }
     var y = window.scrollY;
-    if (S.d.finished && S.wrap.open) { $app.innerHTML = wrappedView(); window.scrollTo(0, 0); }
+    if (S.d.finished && S.wrap.open) { if (S.pingedWrap !== S.code) { S.pingedWrap = S.code; ev('wrapped_view'); } $app.innerHTML = wrappedView(); window.scrollTo(0, 0); }
     else { partyView(); window.scrollTo(0, y); }
   }
 
@@ -800,6 +834,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
     var a = b.dataset.act, v = b.dataset.v;
     if (b.tagName === 'A' && b.getAttribute('href') === '#') e.preventDefault();
     if (a === 'privacy') privacyModal();
+    else if (a === 'feedback') feedbackModal();
     else if (a === 'invite') invite();
     else if (a === 'savemusic') { var mi = document.getElementById('in-music'); if (!mi || !mi.value.trim()) return toast('Pega primero un enlace'); act('music', { pid: S.prof.pid, url: mi.value.trim() }, '🎵 Música guardada'); }
     else if (a === 'clearmusic') act('music', { pid: S.prof.pid, url: '' }, 'Música quitada');
@@ -836,6 +871,7 @@ nav .badge { position: absolute; top: 2px; right: 22%; background: var(--lime); 
       else { S.confirmFinish = false; act('finish', { pid: S.prof.pid }); }
     }
     else if (a === 'copy') {
+      ev('copy');
       var ok = function () { toast('Enlace copiado: ' + link()); }, ko = function () { toast('Enlace: ' + link()); };
       try { navigator.clipboard.writeText(link()).then(ok, ko); } catch (x) { ko(); }
     }
